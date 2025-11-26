@@ -1,12 +1,11 @@
 ﻿using System.Collections.Generic;
 
-namespace DbReflector.Common
+namespace DbReflector.Common;
+
+public interface IUdtInfo : ISchemaObjectInfo
 {
-    public interface IUdtInfo : ISchemaObjectInfo
-    {
-        Dictionary<string, IUdtColumnInfo> Columns { get; }
-        string Database { get; }
-        string Schema { get; }
-        string UdtName { get; }
-    }
+    Dictionary<string, IUdtColumnInfo> Columns { get; }
+    string Database { get; }
+    string Schema { get; }
+    string UdtName { get; }
 }
