@@ -7,269 +7,269 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 
-namespace DbReflector
-{
+namespace DbReflector;
 
-    public enum FunctionName
+
+public enum FunctionName
+{
+    ProcParameters,
+    Procs,
+    TableColumns,
+    UdtColumns,
+    TablesAndViews,
+    Udts,
+}
+
+public class SqlHelper
+{
+    SQLiteConnection _SqliteConnection;
+    SQLiteCommand _SqliteCommand;
+    SQLiteDataAdapter _SqliteAdapter;
+
+    SqlConnection _connection;
+    SqlCommand _cmd;
+    SqlDataAdapter _da;
+
+    string _applicationName;
+    string _connectionString;
+
+    public static readonly string SqliteDb = "URI=file:" + Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "DbReflector.db"); //@"URI=file:C:\trash\dbReflector.db"
+    SqlHelper(string connectionString, string applicationName, bool refreshMetaData)
     {
-        ProcParameters,
-        Procs,
-        TableColumns,
-        UdtColumns,
-        TablesAndViews,
-        Udts,
+        _connectionString = connectionString;
+        _applicationName = applicationName;
+
+        _SqliteConnection = new SQLiteConnection(SqliteDb);
+        _SqliteConnection.Open();
+        _SqliteCommand = new SQLiteCommand();
+        _SqliteCommand.Connection = _SqliteConnection;
+        _SqliteAdapter = new SQLiteDataAdapter(_SqliteCommand);
+
+
+        _connection = new SqlConnection(_connectionString);
+        _connection.Open();
+        _cmd = new SqlCommand();
+        _cmd.Connection = _connection;
+        _da = new SqlDataAdapter(_cmd);
+
+        if (refreshMetaData)
+        {
+            //create the configuration tables in an Sqlite database
+            ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_TableColumns_2));
+            ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_TablesAndViews_4));
+            ExecuteSqliteNonQuery(TransformSql(Procs.CreateTable_Procs_7));
+            ExecuteSqliteNonQuery(TransformSql(Procs.CreateTable_ProcParams_9));
+            ExecuteSqliteNonQuery(TransformSql(Procs.CreateTable_ProcColumns_10_1));
+            ExecuteSqliteNonQuery(TransformSql(Udts.CreateTable_Udts_11));
+            ExecuteSqliteNonQuery(TransformSql(Udts.CreateTable_UdtColumns_13));
+
+            InsertIntoTableColumns(ExecuteDataTable(TransformSql(Tables.RefreshTable_TableColumns_3)));
+            InsertIntoTablesAndViews(ExecuteDataTable(TransformSql(Tables.RefreshTable_TablesAndViews_5)));
+            UpdateTablesAndViewsPrimaryKeysColumn(ExecuteSqliteDataTable(TransformSql(Tables.AddPrimaryKeysToTablesAndViews_6)));
+            UpdateTablesAndViewsForeignKeysColumn(ExecuteSqliteDataTable(TransformSql(Tables.AddForeignKeysToTablesAndViews_6_1)));
+            InsertIntoProcs(ExecuteDataTable(TransformSql(Procs.RefreshTable_Procs_8)));
+            InsertIntoProcParams(ExecuteDataTable(TransformSql(Procs.RefreshTable_ProcParams_10)));
+            InsertIntoProcColumns(ExecuteDataTable(TransformSql(Procs.RefreshTable_ProcColumns_10_2)));
+            InsertIntoUdts(ExecuteDataTable(TransformSql(Udts.RefreshTable_Udts_12)));
+            InsertIntoUdtColumns(ExecuteDataTable(TransformSql(Udts.RefreshTable_UdtColumns_14)));
+        }
     }
 
-    public class SqlHelper
+    private void UpdateTablesAndViewsPrimaryKeysColumn(DataTable table)
     {
-        SQLiteConnection _SqliteConnection;
-        SQLiteCommand _SqliteCommand;
-        SQLiteDataAdapter _SqliteAdapter;
-
-        SqlConnection _connection;
-        SqlCommand _cmd;
-        SqlDataAdapter _da;
-
-        string _applicationName;
-        string _connectionString;
-
-        public static readonly string SqliteDb = "URI=file:" + Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "DbReflector.db"); //@"URI=file:C:\trash\dbReflector.db"
-        SqlHelper(string connectionString, string applicationName, bool refreshMetaData)
+        var sb = new StringBuilder();
+        foreach (DataRow row in table.Rows)
         {
-            _connectionString = connectionString;
-            _applicationName = applicationName;
-
-            _SqliteConnection = new SQLiteConnection(SqliteDb);
-            _SqliteConnection.Open();
-            _SqliteCommand = new SQLiteCommand();
-            _SqliteCommand.Connection = _SqliteConnection;
-            _SqliteAdapter = new SQLiteDataAdapter(_SqliteCommand);
-
-
-            _connection = new SqlConnection(_connectionString);
-            _connection.Open();
-            _cmd = new SqlCommand();
-            _cmd.Connection = _connection;
-            _da = new SqlDataAdapter(_cmd);
-
-            if (refreshMetaData)
-            {
-                //create the configuration tables in an Sqlite database
-                ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_TableColumns_2));
-                ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_TablesAndViews_4));
-                ExecuteSqliteNonQuery(TransformSql(Procs.CreateTable_Procs_7));
-                ExecuteSqliteNonQuery(TransformSql(Procs.CreateTable_ProcParams_9));
-                ExecuteSqliteNonQuery(TransformSql(Procs.CreateTable_ProcColumns_10_1));
-                ExecuteSqliteNonQuery(TransformSql(Udts.CreateTable_Udts_11));
-                ExecuteSqliteNonQuery(TransformSql(Udts.CreateTable_UdtColumns_13));
-
-                InsertIntoTableColumns(ExecuteDataTable(TransformSql(Tables.RefreshTable_TableColumns_3)));
-                InsertIntoTablesAndViews(ExecuteDataTable(TransformSql(Tables.RefreshTable_TablesAndViews_5)));
-                UpdateTablesAndViewsPrimaryKeysColumn(ExecuteSqliteDataTable(TransformSql(Tables.AddPrimaryKeysToTablesAndViews_6)));
-                UpdateTablesAndViewsForeignKeysColumn(ExecuteSqliteDataTable(TransformSql(Tables.AddForeignKeysToTablesAndViews_6_1)));
-                InsertIntoProcs(ExecuteDataTable(TransformSql(Procs.RefreshTable_Procs_8)));
-                InsertIntoProcParams(ExecuteDataTable(TransformSql(Procs.RefreshTable_ProcParams_10)));
-                InsertIntoProcColumns(ExecuteDataTable(TransformSql(Procs.RefreshTable_ProcColumns_10_2)));
-                InsertIntoUdts(ExecuteDataTable(TransformSql(Udts.RefreshTable_Udts_12)));
-                InsertIntoUdtColumns(ExecuteDataTable(TransformSql(Udts.RefreshTable_UdtColumns_14)));
-            }
+            sb.Append($"update TablesAndViews set primary_keys='{row["Primary_Keys"]}' where application_name='{row["application_name"]}' and table_schema='{row["TABLE_SCHEMA"]}' and table_name ='{row["TABLE_NAME"]}';\n");
         }
-
-        private void UpdateTablesAndViewsPrimaryKeysColumn(DataTable table)
+        ExecuteSqliteNonQuery(sb.ToString());
+    }
+    private void UpdateTablesAndViewsForeignKeysColumn(DataTable table)
+    {
+        var sb = new StringBuilder();
+        foreach (DataRow row in table.Rows)
         {
-            var sb = new StringBuilder();
-            foreach (DataRow row in table.Rows)
-            {
-                sb.Append($"update TablesAndViews set primary_keys='{row["Primary_Keys"]}' where application_name='{row["application_name"]}' and table_schema='{row["TABLE_SCHEMA"]}' and table_name ='{row["TABLE_NAME"]}';\n");
-            }
-            ExecuteSqliteNonQuery(sb.ToString());
+            sb.Append($"update TablesAndViews set foreign_keys='{row["foreign_keys"]}' where application_name='{row["application_name"]}' and TABLE_SCHEMA='{row["TABLE_SCHEMA"]}' and table_name ='{row["TABLE_NAME"]}';\n");
         }
-        private void UpdateTablesAndViewsForeignKeysColumn(DataTable table)
-        {
-            var sb = new StringBuilder();
-            foreach (DataRow row in table.Rows)
-            {
-                sb.Append($"update TablesAndViews set foreign_keys='{row["foreign_keys"]}' where application_name='{row["application_name"]}' and TABLE_SCHEMA='{row["TABLE_SCHEMA"]}' and table_name ='{row["TABLE_NAME"]}';\n");
-            }
-            ExecuteSqliteNonQuery(sb.ToString());
-        }
+        ExecuteSqliteNonQuery(sb.ToString());
+    }
 
-        public static SqlHelper CreateInstance(string connectionstring, string applicationName, bool refreshMetaData = false) => new SqlHelper(connectionstring, applicationName, refreshMetaData);
+    public static SqlHelper CreateInstance(string connectionstring, string applicationName, bool refreshMetaData = false) => new SqlHelper(connectionstring, applicationName, refreshMetaData);
 
-        public DataTable GetDataTable(string sql, string name)
+    public DataTable GetDataTable(string sql, string name)
+    {
+        DataTable table = new DataTable(name);
+        _SqliteCommand.CommandText = sql;
+        _SqliteCommand.CommandType = CommandType.Text;
+        SQLiteDataAdapter da = new SQLiteDataAdapter(_SqliteCommand);
+
+        da.Fill(table);
+        return table;
+    }
+    void ExecuteSqliteNonQuery(string sql)
+    {
+        try
         {
-            DataTable table = new DataTable(name);
-            _SqliteCommand.CommandText = sql;
             _SqliteCommand.CommandType = CommandType.Text;
-            SQLiteDataAdapter da = new SQLiteDataAdapter(_SqliteCommand);
-
-            da.Fill(table);
+            _SqliteCommand.CommandText = sql;
+            _SqliteCommand.CommandTimeout = 60;
+            _SqliteCommand.ExecuteNonQuery();
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+    }
+    DataTable ExecuteSqliteDataTable(string sql)
+    {
+        try
+        {
+            _SqliteCommand.CommandType = CommandType.Text;
+            _SqliteCommand.CommandText = sql;
+            _SqliteCommand.CommandTimeout = 60;
+            DataTable table = new DataTable();
+            _SqliteAdapter.Fill(table);
             return table;
         }
-        void ExecuteSqliteNonQuery(string sql)
+        catch (Exception ex)
         {
-            try
+            throw;
+        }
+    }
+
+    DataTable ExecuteDataTable(string sql)
+    {
+        try
+        {
+            _cmd.CommandType = CommandType.Text;
+            _cmd.CommandText = sql;
+            _cmd.CommandTimeout = 60;
+            DataTable table = new DataTable();
+            _da.Fill(table);
+            return table;
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+    }
+    void InsertIntoUdtColumns(DataTable table)
+    {
+        if (table.Rows.Count == 0) return;
+        var sql = $"INSERT INTO UdtColumns(application_name,schema_name,type_name,column_name,data_type,ordinal_number,max_length,precision,is_nullable,is_identity,is_computed) VALUES";
+
+        var values = new List<string>();
+
+        for (int row_index = 0; row_index < table.Rows.Count; row_index++)
+        {
+            DataRow row = table.Rows[row_index];
+            values.Add($"('{row["application_name"]}','{row["schema_name"]}','{row["type_name"]}','{row["column_name"]}','{row["data_type"]}','{row["ordinal_number"]}','{row["max_length"]}','{row["precision"]}','{row["is_nullable"]}','{row["is_identity"]}','{row["is_computed"]}')");
+        }
+        sql += string.Join(",", values);
+        _SqliteCommand.CommandText = sql;
+        _SqliteCommand.ExecuteNonQuery();
+    }
+    void InsertIntoProcColumns(DataTable table)
+    {
+        var sql = $"INSERT INTO ProcColumns(APPLICATION_NAME,SCHEMA_NAME,PROC_NAME,ORDINAL_POSITION,COLUMN_NAME,IsNullable,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH,DOMAIN_NAME) VALUES";
+        HashSet<string> set = new HashSet<string>();
+        var values = new List<string>();
+
+        for (int row_index = 0; row_index < table.Rows.Count; row_index++)
+        {
+            DataRow row = table.Rows[row_index];
+            string key = $"{row["schema_name"]}-{row["proc_name"]}-{row["column_name"]}";
+            if (!set.Contains(key))
             {
-                _SqliteCommand.CommandType = CommandType.Text;
-                _SqliteCommand.CommandText = sql;
-                _SqliteCommand.CommandTimeout = 60;
-                _SqliteCommand.ExecuteNonQuery();
-            }
-            catch (Exception ex)
-            {
-                throw;
+                values.Add($"('{row["application_name"]}','{row["schema_name"]}','{row["proc_name"]}','{row["ordinal_position"]}','{row["column_name"]}','{row["is_nullable"]}','{row["data_type"]}','{row["character_maximum_length"]}','{row["domain_name"]}')");
+                set.Add(key);
             }
         }
-        DataTable ExecuteSqliteDataTable(string sql)
+        sql += string.Join(",", values);
+        _SqliteCommand.CommandText = sql;
+        _SqliteCommand.ExecuteNonQuery();
+    }
+
+    void InsertIntoProcParams(DataTable table)
+    {
+        var sql = $"INSERT INTO ProcParams (application_name,SchemaName,ProcName,ParameterName,OrdinalNumber,Direction,IsResult,ParameterType,ParameterMaxLen,ParameterNumericPrecision,ParameterDatePrecision,ParameterUDTName) VALUES";
+
+        var values = new List<string>();
+
+        for (int row_index = 0; row_index < table.Rows.Count; row_index++)
         {
-            try
-            {
-                _SqliteCommand.CommandType = CommandType.Text;
-                _SqliteCommand.CommandText = sql;
-                _SqliteCommand.CommandTimeout = 60;
-                DataTable table = new DataTable();
-                _SqliteAdapter.Fill(table);
-                return table;
-            }
-            catch (Exception ex)
-            {
-                throw;
-            }
+            DataRow row = table.Rows[row_index];
+            values.Add($"('{row["application_name"]}','{row["SPECIFIC_SCHEMA"]}','{row["ROUTINE_NAME"]}','{row["PARAMETER_NAME"]}','{row["ORDINAL_POSITION"]}','{row["PARAMETER_MODE"]}','{row["IS_RESULT"]}','{row["DATA_TYPE"]}','{row["CHARACTER_MAXIMUM_LENGTH"]}','{row["NUMERIC_PRECISION"]}','{row["DATETIME_PRECISION"]}','{row["USER_DEFINED_TYPE_NAME"]}')");
         }
+        sql += string.Join(",", values);
+        _SqliteCommand.CommandText = sql;
+        _SqliteCommand.ExecuteNonQuery();
+    }
+    void InsertIntoProcs(DataTable table)
+    {
+        var sql = $"INSERT INTO Procs (application_name,SchemaName,ProcName,IgnoreProc,SourceCode) VALUES";
 
-        DataTable ExecuteDataTable(string sql)
+        var values = new List<string>();
+
+        for (int row_index = 0; row_index < table.Rows.Count; row_index++)
         {
-            try
-            {
-                _cmd.CommandType = CommandType.Text;
-                _cmd.CommandText = sql;
-                _cmd.CommandTimeout = 60;
-                DataTable table = new DataTable();
-                _da.Fill(table);
-                return table;
-            }
-            catch (Exception ex)
-            {
-                throw;
-            }
+            DataRow row = table.Rows[row_index];
+            values.Add($"('{row["application_name"]}','{row["SchemaName"]}','{row["ProcName"]}','{row["IgnoreProc"]}','{row["SourceCode"].ToString().Replace("'", "''")}')");
         }
-        void InsertIntoUdtColumns(DataTable table)
+        sql += string.Join(",", values);
+        _SqliteCommand.CommandText = sql;
+        _SqliteCommand.ExecuteNonQuery();
+    }
+    void InsertIntoUdts(DataTable table)
+    {
+        var sql = $"INSERT INTO Udts(application_name,schema_name,udt_name,ignore_udt) VALUES";
+
+        var values = new List<string>();
+
+        for (int row_index = 0; row_index < table.Rows.Count; row_index++)
         {
-            if (table.Rows.Count == 0) return;
-            var sql = $"INSERT INTO UdtColumns(application_name,schema_name,type_name,column_name,data_type,ordinal_number,max_length,precision,is_nullable,is_identity,is_computed) VALUES";
-
-            var values = new List<string>();
-
-            for (int row_index = 0; row_index < table.Rows.Count; row_index++)
-            {
-                DataRow row = table.Rows[row_index];
-                values.Add($"('{row["application_name"]}','{row["schema_name"]}','{row["type_name"]}','{row["column_name"]}','{row["data_type"]}','{row["ordinal_number"]}','{row["max_length"]}','{row["precision"]}','{row["is_nullable"]}','{row["is_identity"]}','{row["is_computed"]}')");
-            }
-            sql += string.Join(",", values);
-            _SqliteCommand.CommandText = sql;
-            _SqliteCommand.ExecuteNonQuery();
+            DataRow row = table.Rows[row_index];
+            values.Add($"('{row["application_name"]}','{row["schema_name"]}','{row["udt_name"]}','{row["ignore_udt"]}')");
         }
-        void InsertIntoProcColumns(DataTable table)
+        if (values.Count == 0) return;
+        sql += string.Join(",", values);
+        _SqliteCommand.CommandText = sql;
+        _SqliteCommand.ExecuteNonQuery();
+    }
+    void InsertIntoTableColumns(DataTable table)
+    {
+        var sql = $"INSERT INTO TableColumns (application_name,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,IsPrimaryKey,IsForeignKey,IsKey,IsNullable,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH,ORDINAL_POSITION,NUMERIC_PRECISION,DOMAIN_NAME,IGNORE_COLUMN,COLUMN_ALIAS) VALUES";
+
+        var values = new List<string>();
+
+        for (int row_index = 0; row_index < table.Rows.Count; row_index++)
         {
-            var sql = $"INSERT INTO ProcColumns(APPLICATION_NAME,SCHEMA_NAME,PROC_NAME,ORDINAL_POSITION,COLUMN_NAME,IsNullable,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH,DOMAIN_NAME) VALUES";
-            HashSet<string> set = new HashSet<string>();
-            var values = new List<string>();
-
-            for (int row_index = 0; row_index < table.Rows.Count; row_index++)
-            {
-                DataRow row = table.Rows[row_index];
-                string key = $"{row["schema_name"]}-{row["proc_name"]}-{row["column_name"]}";
-                if (!set.Contains(key))
-                {
-                    values.Add($"('{row["application_name"]}','{row["schema_name"]}','{row["proc_name"]}','{row["ordinal_position"]}','{row["column_name"]}','{row["is_nullable"]}','{row["data_type"]}','{row["character_maximum_length"]}','{row["domain_name"]}')");
-                    set.Add(key);
-                }
-            }
-            sql += string.Join(",", values);
-            _SqliteCommand.CommandText = sql;
-            _SqliteCommand.ExecuteNonQuery();
+            DataRow row = table.Rows[row_index];
+            values.Add($"('{row["application_name"]}','{row["TABLE_SCHEMA"]}','{row["TABLE_NAME"]}','{row["COLUMN_NAME"]}','{row["IsPrimaryKey"]}','{row["IsForeignKey"]}','{row["IsKey"]}','{row["IsNullable"]}','{row["DATA_TYPE"]}','{row["CHARACTER_MAXIMUM_LENGTH"]}','{row["ORDINAL_POSITION"]}','{row["NUMERIC_PRECISION"]}','{row["DOMAIN_NAME"]}','{row["IGNORE_COLUMN"]}','{row["COLUMN_ALIAS"]}')");
         }
+        sql += string.Join(",", values);
+        _SqliteCommand.CommandText = sql;
+        _SqliteCommand.ExecuteNonQuery();
+    }
 
-        void InsertIntoProcParams(DataTable table)
+    void InsertIntoTablesAndViews(DataTable table)
+    {
+        var sql = $"INSERT INTO TablesAndViews(application_name,table_schema,table_name,table_type,table_alias,IgnoreTable,is_enum) VALUES";
+
+        var values = new List<string>();
+
+        for (int row_index = 0; row_index < table.Rows.Count; row_index++)
         {
-            var sql = $"INSERT INTO ProcParams (application_name,SchemaName,ProcName,ParameterName,OrdinalNumber,Direction,IsResult,ParameterType,ParameterMaxLen,ParameterNumericPrecision,ParameterDatePrecision,ParameterUDTName) VALUES";
-
-            var values = new List<string>();
-
-            for (int row_index = 0; row_index < table.Rows.Count; row_index++)
-            {
-                DataRow row = table.Rows[row_index];
-                values.Add($"('{row["application_name"]}','{row["SPECIFIC_SCHEMA"]}','{row["ROUTINE_NAME"]}','{row["PARAMETER_NAME"]}','{row["ORDINAL_POSITION"]}','{row["PARAMETER_MODE"]}','{row["IS_RESULT"]}','{row["DATA_TYPE"]}','{row["CHARACTER_MAXIMUM_LENGTH"]}','{row["NUMERIC_PRECISION"]}','{row["DATETIME_PRECISION"]}','{row["USER_DEFINED_TYPE_NAME"]}')");
-            }
-            sql += string.Join(",", values);
-            _SqliteCommand.CommandText = sql;
-            _SqliteCommand.ExecuteNonQuery();
+            DataRow row = table.Rows[row_index];
+            values.Add($"('{row["application_name"]}','{row["table_schema"]}','{row["table_name"]}','{row["table_type"]}','{row["table_alias"]}','{row["IgnoreTable"]}','{row["is_enum"]}')");
         }
-        void InsertIntoProcs(DataTable table)
-        {
-            var sql = $"INSERT INTO Procs (application_name,SchemaName,ProcName,IgnoreProc,SourceCode) VALUES";
+        sql += string.Join(",", values);
+        _SqliteCommand.CommandText = sql;
+        _SqliteCommand.ExecuteNonQuery();
+    }
 
-            var values = new List<string>();
-
-            for (int row_index = 0; row_index < table.Rows.Count; row_index++)
-            {
-                DataRow row = table.Rows[row_index];
-                values.Add($"('{row["application_name"]}','{row["SchemaName"]}','{row["ProcName"]}','{row["IgnoreProc"]}','{row["SourceCode"].ToString().Replace("'", "''")}')");
-            }
-            sql += string.Join(",", values);
-            _SqliteCommand.CommandText = sql;
-            _SqliteCommand.ExecuteNonQuery();
-        }
-        void InsertIntoUdts(DataTable table)
-        {
-            var sql = $"INSERT INTO Udts(application_name,schema_name,udt_name,ignore_udt) VALUES";
-
-            var values = new List<string>();
-
-            for (int row_index = 0; row_index < table.Rows.Count; row_index++)
-            {
-                DataRow row = table.Rows[row_index];
-                values.Add($"('{row["application_name"]}','{row["schema_name"]}','{row["udt_name"]}','{row["ignore_udt"]}')");
-            }
-            if (values.Count == 0) return;
-            sql += string.Join(",", values);
-            _SqliteCommand.CommandText = sql;
-            _SqliteCommand.ExecuteNonQuery();
-        }
-        void InsertIntoTableColumns(DataTable table)
-        {
-            var sql = $"INSERT INTO TableColumns (application_name,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,IsPrimaryKey,IsForeignKey,IsKey,IsNullable,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH,ORDINAL_POSITION,NUMERIC_PRECISION,DOMAIN_NAME,IGNORE_COLUMN,COLUMN_ALIAS) VALUES";
-
-            var values = new List<string>();
-
-            for (int row_index = 0; row_index < table.Rows.Count; row_index++)
-            {
-                DataRow row = table.Rows[row_index];
-                values.Add($"('{row["application_name"]}','{row["TABLE_SCHEMA"]}','{row["TABLE_NAME"]}','{row["COLUMN_NAME"]}','{row["IsPrimaryKey"]}','{row["IsForeignKey"]}','{row["IsKey"]}','{row["IsNullable"]}','{row["DATA_TYPE"]}','{row["CHARACTER_MAXIMUM_LENGTH"]}','{row["ORDINAL_POSITION"]}','{row["NUMERIC_PRECISION"]}','{row["DOMAIN_NAME"]}','{row["IGNORE_COLUMN"]}','{row["COLUMN_ALIAS"]}')");
-            }
-            sql += string.Join(",", values);
-            _SqliteCommand.CommandText = sql;
-            _SqliteCommand.ExecuteNonQuery();
-        }
-
-        void InsertIntoTablesAndViews(DataTable table)
-        {
-            var sql = $"INSERT INTO TablesAndViews(application_name,table_schema,table_name,table_type,table_alias,IgnoreTable,is_enum) VALUES";
-
-            var values = new List<string>();
-
-            for (int row_index = 0; row_index < table.Rows.Count; row_index++)
-            {
-                DataRow row = table.Rows[row_index];
-                values.Add($"('{row["application_name"]}','{row["table_schema"]}','{row["table_name"]}','{row["table_type"]}','{row["table_alias"]}','{row["IgnoreTable"]}','{row["is_enum"]}')");
-            }
-            sql += string.Join(",", values);
-            _SqliteCommand.CommandText = sql;
-            _SqliteCommand.ExecuteNonQuery();
-        }
-
-        #region Code Templates
-        const string CreateSchema_DbReflector_1 = @"
+    #region Code Templates
+    const string CreateSchema_DbReflector_1 = @"
 IF not exists(SELECT * FROM sys.schemas WHERE name = N'DbReflector')
 BEGIN	
 	declare @sql nvarchar(4000) = 'create schema DbReflector';
@@ -277,11 +277,11 @@ BEGIN
 End
 ";
 
-        public string TransformSql(string s) => s.Replace("<@applicationName@>", _applicationName).Replace("<@excludedSchemasList@>", "'DbReflector','bTbParams','sys'");
+    public string TransformSql(string s) => s.Replace("<@applicationName@>", _applicationName).Replace("<@excludedSchemasList@>", "'DbReflector','bTbParams','sys'");
 
-        static class Tables
-        {
-            public const string CreateTable_TableColumns_2 = @"
+    static class Tables
+    {
+        public const string CreateTable_TableColumns_2 = @"
 drop table if exists TableColumns;create table TableColumns
 (
     application_name nvarchar(50) not null
@@ -302,7 +302,7 @@ drop table if exists TableColumns;create table TableColumns
 )
 ;create unique index u_bTb_tblcols on TableColumns (application_name, TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME)
 ;create unique index u_bTb_tblcols_colalias on TableColumns (application_name, TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME)";
-            public const string RefreshTable_TableColumns_3 = @"
+        public const string RefreshTable_TableColumns_3 = @"
 declare @app varchar(50) = '<@applicationName@>';
 SET NOCOUNT ON
 SET XACT_ABORT ON;
@@ -332,7 +332,7 @@ where
 	source as (SELECT @app as application_name, c.TABLE_SCHEMA, c.TABLE_NAME, c.COLUMN_NAME, c.COLUMN_NAME COLUMN_ALIAS, cast(MAX(c.IsPrimaryKey) as bit) IsPrimaryKey, cast(MAX(c.IsForeignKey) as bit)IsForeignKey, cast(MAX(c.IsKey) as bit) IsKey, c.IsNullable, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.NUMERIC_PRECISION , c.DOMAIN_NAME,c.ORDINAL_POSITION, cast(0 as bit) IGNORE_COLUMN FROM cte c GROUP BY c.TABLE_SCHEMA, c.TABLE_NAME, c.COLUMN_NAME, c.IsNullable, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.NUMERIC_PRECISION , c.DOMAIN_NAME, c.ORDINAL_POSITION )
 select * from source
 ";
-            public const string CreateTable_TablesAndViews_4 = @"
+        public const string CreateTable_TablesAndViews_4 = @"
 drop table if exists TablesAndViews;create table TablesAndViews
 (
     application_name nvarchar(50) not null
@@ -348,30 +348,30 @@ drop table if exists TablesAndViews;create table TablesAndViews
 ;CREATE UNIQUE INDEX u_tblvws ON  TablesAndViews (application_name , table_schema,table_name)
 ;CREATE UNIQUE INDEX u_tblvws_alias ON  TablesAndViews (application_name ,table_schema,table_alias);
 ";
-            public const string RefreshTable_TablesAndViews_5 = @"
+        public const string RefreshTable_TablesAndViews_5 = @"
 declare @app varchar(50) = '<@applicationName@>'
 SET NOCOUNT ON
 SET XACT_ABORT ON;
 SELECT @app application_name, table_schema,table_name,table_type,table_name table_alias, 0 IgnoreTable,0 is_enum,''primary_keys,''foreign_keys FROM INFORMATION_SCHEMA.tables where table_schema not in (<@excludedSchemasList@>)
 ";
-            public const string AddPrimaryKeysToTablesAndViews_6 = @"
+        public const string AddPrimaryKeysToTablesAndViews_6 = @"
 SELECT tc.application_name, tc.TABLE_SCHEMA, tc.TABLE_NAME, group_concat(tc.COLUMN_NAME) Primary_Keys FROM TableColumns tc
          WHERE tc.IsPrimaryKey = 'True'
          AND tc.application_name='<@applicationName@>'
          GROUP BY tc.application_name,tc.TABLE_SCHEMA, tc.TABLE_NAME
 ";
-            public const string AddForeignKeysToTablesAndViews_6_1 = @"
+        public const string AddForeignKeysToTablesAndViews_6_1 = @"
 SELECT tc.application_name, tc.TABLE_SCHEMA, tc.TABLE_NAME, group_concat(tc.COLUMN_NAME) foreign_keys FROM TableColumns tc
          WHERE tc.IsForeignKey = 'True'
          AND tc.application_name='<@applicationName@>'
          GROUP BY tc.application_name,tc.TABLE_SCHEMA, tc.TABLE_NAME
 ";
-        }
+    }
 
-        static class Procs
-        {
+    static class Procs
+    {
 
-            public const string CreateTable_Procs_7 = @"
+        public const string CreateTable_Procs_7 = @"
 drop table if exists Procs;create table Procs
 (
     application_name nvarchar(50) not null
@@ -382,7 +382,7 @@ drop table if exists Procs;create table Procs
 )
 ;create unique index bTb_procs on Procs(application_name,SchemaName,ProcName)
 ";
-            public const string RefreshTable_Procs_8 = @"
+        public const string RefreshTable_Procs_8 = @"
 declare @app varchar(50) = '<@applicationName@>';
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
@@ -399,7 +399,7 @@ WITH source
          AND r.SPECIFIC_SCHEMA NOT IN(<@excludedSchemasList@>))
 select * from source
 ";
-            public const string CreateTable_ProcParams_9 = @"
+        public const string CreateTable_ProcParams_9 = @"
 drop table if exists ProcParams;create table ProcParams
 ( 
         application_name nvarchar(50) not null,
@@ -417,7 +417,7 @@ drop table if exists ProcParams;create table ProcParams
 )
 ;create unique index bTb_procparam on ProcParams(application_name, SchemaName,ProcName,ParameterName)
 ";
-            public const string RefreshTable_ProcParams_10 = @"
+        public const string RefreshTable_ProcParams_10 = @"
 DECLARE @app VARCHAR(50)= '<@applicationName@>';
 SET NOCOUNT ON
 SET XACT_ABORT ON;
@@ -445,7 +445,7 @@ WHERE routine_type = 'PROCEDURE'
 )
 select * from source
 ";
-            public const string CreateTable_ProcColumns_10_1 = @"
+        public const string CreateTable_ProcColumns_10_1 = @"
 drop table if exists ProcColumns;create table ProcColumns
 (
     APPLICATION_NAME nvarchar(50) not null,
@@ -460,7 +460,7 @@ drop table if exists ProcColumns;create table ProcColumns
     PRIMARY KEY (APPLICATION_NAME, SCHEMA_NAME, PROC_NAME, COLUMN_NAME)
 )
 ";
-            public const string RefreshTable_ProcColumns_10_2 = @"
+        public const string RefreshTable_ProcColumns_10_2 = @"
 declare @app varchar(50) = '<@applicationName@>'
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
@@ -479,11 +479,11 @@ WITH source
          WHERE is_hidden = 0 AND s.name NOT IN (<@excludedSchemasList@>))
 select * from source
 ";
-        }
+    }
 
-        static class Udts
-        {
-            public const string CreateTable_Udts_11 = @"
+    static class Udts
+    {
+        public const string CreateTable_Udts_11 = @"
 drop table if exists Udts;create table Udts
 (
     application_name nvarchar(50) not null,
@@ -493,7 +493,7 @@ drop table if exists Udts;create table Udts
 )
 ;create unique index bTb_udts on udts(application_name, schema_name,udt_name)
 ";
-            public const string RefreshTable_Udts_12 = @"
+        public const string RefreshTable_Udts_12 = @"
 declare @app varchar(50) = '<@applicationName@>'
 SET NOCOUNT ON
 SET XACT_ABORT ON;
@@ -505,7 +505,7 @@ with source as
 )
 select * from source
 ";
-            public const string CreateTable_UdtColumns_13 = @"
+        public const string CreateTable_UdtColumns_13 = @"
 drop table if exists UdtColumns;create table UdtColumns
 (
     application_name nvarchar(50) not null,
@@ -522,7 +522,7 @@ drop table if exists UdtColumns;create table UdtColumns
 )
 ;create unique index bTb_udtcols on UdtColumns (application_name,schema_name,type_name,column_name)
 ";
-            public const string RefreshTable_UdtColumns_14 = @"
+        public const string RefreshTable_UdtColumns_14 = @"
 declare @app varchar(50) = '<@applicationName@>'
 SET NOCOUNT ON
 SET XACT_ABORT ON;
@@ -549,7 +549,6 @@ where t.is_user_defined = 1
   ) 
 select * from source
 ";
-        }
-        #endregion
     }
+    #endregion
 }

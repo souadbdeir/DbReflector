@@ -1,7 +1,6 @@
-﻿namespace DbReflector.Common
+﻿namespace DbReflector.Common;
+
+public interface ISchemaObjectInfo
 {
-    public interface ISchemaObjectInfo
-    {
-        string DictionaryKey { get; }
-    }
+    string DictionaryKey { get; }
 }
