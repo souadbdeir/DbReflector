@@ -78,5 +78,29 @@ namespace DbReflector.UnitTesting
         {
             Assert.Equals(1, table.Columns_Audit.Count);
         }
+
+        [Test]
+        public void AddressIdIsIdentity()
+        {
+            Assert.That(table.Columns["AddressID"].IsIdentity, Is.True);
+        }
+
+        [Test]
+        public void AddressLine1IsNotComputed()
+        {
+            Assert.That(table.Columns["AddressLine1"].IsComputed, Is.False);
+        }
+
+        [Test]
+        public void RowGuidHasDefaultConstraint()
+        {
+            Assert.That(table.Columns["rowguid"].HasDefaultConstraint, Is.True);
+        }
+
+        [Test]
+        public void ModifiedDateHasDefaultConstraint()
+        {
+            Assert.That(table.Columns["ModifiedDate"].HasDefaultConstraint, Is.True);
+        }
     }
 }

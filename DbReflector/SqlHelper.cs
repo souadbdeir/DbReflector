@@ -73,6 +73,22 @@ public class SqlHelper
             InsertIntoUdts(ExecuteDataTable(TransformSql(Udts.RefreshTable_Udts_12)));
             InsertIntoUdtColumns(ExecuteDataTable(TransformSql(Udts.RefreshTable_UdtColumns_14)));
         }
+
+        EnsureTableColumnMetadataColumns();
+    }
+
+    void EnsureTableColumnMetadataColumns()
+    {
+        foreach (var columnName in new[] { "IsIdentity", "IsComputed", "IsRowVersion", "HasDefaultConstraint" })
+        {
+            _SqliteCommand.CommandText = $"select count(*) from pragma_table_info('TableColumns') where name = '{columnName}'";
+            var exists = Convert.ToInt32(_SqliteCommand.ExecuteScalar()) > 0;
+            if (!exists)
+            {
+                _SqliteCommand.CommandText = $"alter table TableColumns add column {columnName} bit not null default(0)";
+                _SqliteCommand.ExecuteNonQuery();
+            }
+        }
     }
 
     private void UpdateTablesAndViewsPrimaryKeysColumn(DataTable table)
@@ -238,14 +254,14 @@ public class SqlHelper
     }
     void InsertIntoTableColumns(DataTable table)
     {
-        var sql = $"INSERT INTO TableColumns (application_name,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,IsPrimaryKey,IsForeignKey,IsKey,IsNullable,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH,ORDINAL_POSITION,NUMERIC_PRECISION,DOMAIN_NAME,IGNORE_COLUMN,COLUMN_ALIAS) VALUES";
+        var sql = $"INSERT INTO TableColumns (application_name,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,IsPrimaryKey,IsForeignKey,IsKey,IsNullable,IsIdentity,IsComputed,IsRowVersion,HasDefaultConstraint,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH,ORDINAL_POSITION,NUMERIC_PRECISION,DOMAIN_NAME,IGNORE_COLUMN,COLUMN_ALIAS) VALUES";
 
         var values = new List<string>();
 
         for (int row_index = 0; row_index < table.Rows.Count; row_index++)
         {
             DataRow row = table.Rows[row_index];
-            values.Add($"('{row["application_name"]}','{row["TABLE_SCHEMA"]}','{row["TABLE_NAME"]}','{row["COLUMN_NAME"]}','{row["IsPrimaryKey"]}','{row["IsForeignKey"]}','{row["IsKey"]}','{row["IsNullable"]}','{row["DATA_TYPE"]}','{row["CHARACTER_MAXIMUM_LENGTH"]}','{row["ORDINAL_POSITION"]}','{row["NUMERIC_PRECISION"]}','{row["DOMAIN_NAME"]}','{row["IGNORE_COLUMN"]}','{row["COLUMN_ALIAS"]}')");
+            values.Add($"('{row["application_name"]}','{row["TABLE_SCHEMA"]}','{row["TABLE_NAME"]}','{row["COLUMN_NAME"]}','{row["IsPrimaryKey"]}','{row["IsForeignKey"]}','{row["IsKey"]}','{row["IsNullable"]}','{row["IsIdentity"]}','{row["IsComputed"]}','{row["IsRowVersion"]}','{row["HasDefaultConstraint"]}','{row["DATA_TYPE"]}','{row["CHARACTER_MAXIMUM_LENGTH"]}','{row["ORDINAL_POSITION"]}','{row["NUMERIC_PRECISION"]}','{row["DOMAIN_NAME"]}','{row["IGNORE_COLUMN"]}','{row["COLUMN_ALIAS"]}')");
         }
         sql += string.Join(",", values);
         _SqliteCommand.CommandText = sql;
@@ -292,6 +308,10 @@ drop table if exists TableColumns;create table TableColumns
     ,IsForeignKey bit  not null
     ,IsKey bit not null
     ,IsNullable bit not null
+    ,IsIdentity bit not null default(0)
+    ,IsComputed bit not null default(0)
+    ,IsRowVersion bit not null default(0)
+    ,HasDefaultConstraint bit not null default(0)
     ,DATA_TYPE nvarchar(50) not null
     ,CHARACTER_MAXIMUM_LENGTH int
     ,ORDINAL_POSITION int not null
@@ -333,23 +353,21 @@ with source as
         cast(case when exists
         (
             select 1
-            from sys.key_constraints kc
-            inner join sys.index_columns ic on ic.object_id = kc.parent_object_id and ic.index_id = kc.unique_index_id
-            where kc.parent_object_id = o.object_id
-              and ic.column_id = c.column_id
-        ) or exists
-        (
-            select 1
-            from sys.foreign_key_columns fkc
-            where fkc.parent_object_id = o.object_id
-              and fkc.parent_column_id = c.column_id
+            from INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE u
+            inner join INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+                on tc.CONSTRAINT_NAME = u.CONSTRAINT_NAME
+               and tc.TABLE_SCHEMA = u.TABLE_SCHEMA
+               and tc.TABLE_NAME = u.TABLE_NAME
+            where u.TABLE_SCHEMA = info.TABLE_SCHEMA
+              and u.TABLE_NAME = info.TABLE_NAME
+              and u.COLUMN_NAME = info.COLUMN_NAME
         ) then 1 else 0 end as bit) as IsKey,
-        cast(case when c.is_nullable = 1 then 1 else 0 end as bit) as IsNullable,
-        type_name(c.system_type_id) as DATA_TYPE,
-        c.max_length as CHARACTER_MAXIMUM_LENGTH,
-        c.column_id as ORDINAL_POSITION,
-        c.precision as NUMERIC_PRECISION,
-        case when c.user_type_id <> c.system_type_id then user_type.name else null end as DOMAIN_NAME,
+        cast(case when info.IS_NULLABLE = 'YES' then 1 else 0 end as bit) as IsNullable,
+        info.DATA_TYPE as DATA_TYPE,
+        info.CHARACTER_MAXIMUM_LENGTH as CHARACTER_MAXIMUM_LENGTH,
+        info.ORDINAL_POSITION as ORDINAL_POSITION,
+        info.NUMERIC_PRECISION as NUMERIC_PRECISION,
+        info.DOMAIN_NAME as DOMAIN_NAME,
         cast(case when ic.object_id is not null then 1 else 0 end as bit) as IsIdentity,
         cast(case when cc.object_id is not null then 1 else 0 end as bit) as IsComputed,
         cast(case when type_name(c.system_type_id) in ('timestamp', 'rowversion') then 1 else 0 end as bit) as IsRowVersion,
@@ -359,6 +377,7 @@ with source as
     from sys.objects o
     inner join sys.schemas s on s.schema_id = o.schema_id
     inner join sys.columns c on c.object_id = o.object_id
+    inner join INFORMATION_SCHEMA.COLUMNS info on info.TABLE_SCHEMA = s.name and info.TABLE_NAME = o.name and info.COLUMN_NAME = c.name
     left join sys.types user_type on user_type.user_type_id = c.user_type_id
     left join sys.identity_columns ic on ic.object_id = c.object_id and ic.column_id = c.column_id
     left join sys.computed_columns cc on cc.object_id = c.object_id and cc.column_id = c.column_id

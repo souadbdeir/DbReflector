@@ -26,6 +26,10 @@ namespace DbReflector
                 bool isForeignKey      = DataRowHelper.GetBool(row,"IsForeignKey");
                 bool isKey             = DataRowHelper.GetBool(row,"IsKey");
                 bool isNullable        = DataRowHelper.GetBool(row,"IsNullable");
+                bool isIdentity        = DataRowHelper.GetBool(row,"IsIdentity");
+                bool isComputed        = DataRowHelper.GetBool(row,"IsComputed");
+                bool isRowVersion      = DataRowHelper.GetBool(row,"IsRowVersion");
+                bool hasDefault        = DataRowHelper.GetBool(row,"HasDefaultConstraint");
                 string dataType        = DataRowHelper.GetString(row,"DATA_TYPE");
                 int? maxLength         = DataRowHelper.GetNullableInt32(row,"CHARACTER_MAXIMUM_LENGTH");
                 byte? numericPrecision = DataRowHelper.GetByte(row,"NUMERIC_PRECISION");
@@ -49,7 +53,11 @@ namespace DbReflector
                                         maxLength: maxLength,
                                         numericPrecision: numericPrecision,
                                         domainName: domainName,
-                                        ordinalPosition: ordinalPosition);
+                                        ordinalPosition: ordinalPosition,
+                                        isIdentity: isIdentity,
+                                        isComputed: isComputed,
+                                        isRowVersion: isRowVersion,
+                                        hasDefaultConstraint: hasDefault);
                 TableColumns.Add(c.DictionaryKey, c);
             }
             schemaInfo.TableColumns = TableColumns;
