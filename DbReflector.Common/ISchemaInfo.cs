@@ -14,5 +14,6 @@ public interface ISchemaInfo
     Dictionary<string, ITableInfo> Views { get; }
     string CacheFile { get; set; }
     ITableInfoFormatter Formatter { get; }
+    IReadOnlyList<IForeignKeyInfo> GetForeignKeysReferencing(string tableName, string primaryKeyColumnName);
     ISchemaInfo Refresh();
 }

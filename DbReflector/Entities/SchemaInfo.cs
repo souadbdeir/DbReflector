@@ -64,6 +64,27 @@ namespace DbReflector
         }
         public ITableInfoFormatter Formatter { get; }
 
+        public IReadOnlyList<IForeignKeyInfo> GetForeignKeysReferencing(string tableName, string primaryKeyColumnName)
+        {
+            if (string.IsNullOrWhiteSpace(tableName) || string.IsNullOrWhiteSpace(primaryKeyColumnName) || TablesAndViews == null)
+                return Array.Empty<IForeignKeyInfo>();
+
+            return TablesAndViews.Values
+                .SelectMany(table => table.ForeignKeys ?? Array.Empty<IForeignKeyInfo>())
+                .Where(foreignKey => IsParentTable(foreignKey, tableName)
+                    && foreignKey.Columns.Any(column => string.Equals(
+                        column.ParentColumnName,
+                        primaryKeyColumnName,
+                        StringComparison.InvariantCultureIgnoreCase)))
+                .ToList();
+        }
+
+        static bool IsParentTable(IForeignKeyInfo foreignKey, string tableName)
+        {
+            return string.Equals(foreignKey.ParentTableName, tableName, StringComparison.InvariantCultureIgnoreCase)
+                || string.Equals($"{foreignKey.ParentSchemaName}.{foreignKey.ParentTableName}", tableName, StringComparison.InvariantCultureIgnoreCase);
+        }
+
         
     }
 }

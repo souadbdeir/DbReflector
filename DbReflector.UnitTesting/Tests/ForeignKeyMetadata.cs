@@ -25,6 +25,11 @@ public class ForeignKeyMetadata
         Assert.That(foreignKey.ParentTableName, Is.EqualTo("Parent"));
         Assert.That(foreignKey.Columns.Select(column => column.ChildColumnName), Is.EqualTo(new[] { "ParentTenantId", "ParentId" }));
         Assert.That(foreignKey.Columns.Select(column => column.ParentColumnName), Is.EqualTo(new[] { "TenantId", "Id" }));
+
+        var related = schema.GetForeignKeysReferencing("Parent", "Id");
+        Assert.That(related, Has.Count.EqualTo(1));
+        Assert.That(related[0].ChildTableName, Is.EqualTo("Child"));
+        Assert.That(related[0].Columns.Select(column => column.ChildColumnName), Is.EqualTo(new[] { "ParentTenantId", "ParentId" }));
     }
 
     private sealed class InMemoryFactory : BaseDataTableFactory
