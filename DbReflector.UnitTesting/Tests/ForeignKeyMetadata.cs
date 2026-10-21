@@ -30,6 +30,12 @@ public class ForeignKeyMetadata
         Assert.That(related, Has.Count.EqualTo(1));
         Assert.That(related[0].ChildTableName, Is.EqualTo("Child"));
         Assert.That(related[0].Columns.Select(column => column.ChildColumnName), Is.EqualTo(new[] { "ParentTenantId", "ParentId" }));
+
+        var inferred = schema.FindRelationshipCandidates("Parent", "Id");
+        Assert.That(inferred, Has.Count.EqualTo(1));
+        Assert.That(inferred[0].IsInferred, Is.True);
+        Assert.That(inferred[0].ChildTableName, Is.EqualTo("InferredChild"));
+        Assert.That(inferred[0].ChildColumnName, Is.EqualTo("ParentId"));
     }
 
     private sealed class InMemoryFactory : BaseDataTableFactory
@@ -41,6 +47,7 @@ public class ForeignKeyMetadata
                 tables.Columns.Add(name);
             tables.Rows.Add("dbo", "Child", "BASE TABLE", "Child", "", "ParentTenantId,ParentId", "False");
             tables.Rows.Add("dbo", "Parent", "BASE TABLE", "Parent", "", "", "False");
+            tables.Rows.Add("dbo", "InferredChild", "BASE TABLE", "InferredChild", "", "", "False");
 
             var columns = new DataTable();
             foreach (var name in new[] { "TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME", "IsPrimaryKey", "IsForeignKey", "IsKey", "IsNullable", "IsIdentity", "IsComputed", "IsRowVersion", "HasDefaultConstraint", "DATA_TYPE", "CHARACTER_MAXIMUM_LENGTH", "ORDINAL_POSITION", "NUMERIC_PRECISION", "DOMAIN_NAME", "IGNORE_COLUMN", "COLUMN_ALIAS" })
@@ -49,6 +56,7 @@ public class ForeignKeyMetadata
             AddColumn(columns, "Child", "ParentId", "True", "2");
             AddColumn(columns, "Parent", "TenantId", "True", "1");
             AddColumn(columns, "Parent", "Id", "True", "2");
+            AddColumn(columns, "InferredChild", "ParentId", "False", "1");
 
             var emptyKeys = KeyTable();
             var foreignKeys = new DataTable();

@@ -79,10 +79,64 @@ namespace DbReflector
                 .ToList();
         }
 
+        public IReadOnlyList<IRelationshipCandidateInfo> FindRelationshipCandidates(string tableName, string primaryKeyColumnName)
+        {
+            if (string.IsNullOrWhiteSpace(tableName) || string.IsNullOrWhiteSpace(primaryKeyColumnName) || TablesAndViews == null)
+                return Array.Empty<IRelationshipCandidateInfo>();
+
+            var parentTables = Tables.Values
+                .Where(table => IsTable(table, tableName)
+                    && table.Columns.ContainsKey(primaryKeyColumnName))
+                .ToList();
+
+            return parentTables
+                .SelectMany(parentTable => Tables.Values
+                    .Where(childTable => !IsSameTable(childTable, parentTable))
+                    .SelectMany(childTable => childTable.Columns.Values
+                        .Where(childColumn => HasExpectedColumnName(childColumn.ColumnName, parentTable.TableName, primaryKeyColumnName))
+                        .Where(childColumn => !HasActualForeignKey(childTable, parentTable, childColumn.ColumnName, primaryKeyColumnName))
+                        .Select(childColumn => (IRelationshipCandidateInfo)new RelationshipCandidateInfo(
+                            childTable.Schema,
+                            childTable.TableName,
+                            childColumn.ColumnName,
+                            parentTable.Schema,
+                            parentTable.TableName,
+                            primaryKeyColumnName))))
+                .ToList();
+        }
+
         static bool IsParentTable(IForeignKeyInfo foreignKey, string tableName)
         {
             return string.Equals(foreignKey.ParentTableName, tableName, StringComparison.InvariantCultureIgnoreCase)
                 || string.Equals($"{foreignKey.ParentSchemaName}.{foreignKey.ParentTableName}", tableName, StringComparison.InvariantCultureIgnoreCase);
+        }
+
+        static bool IsTable(ITableInfo table, string tableName)
+        {
+            return string.Equals(table.TableName, tableName, StringComparison.InvariantCultureIgnoreCase)
+                || string.Equals(table.TableFQN, tableName, StringComparison.InvariantCultureIgnoreCase);
+        }
+
+        static bool IsSameTable(ITableInfo first, ITableInfo second)
+        {
+            return string.Equals(first.Schema, second.Schema, StringComparison.InvariantCultureIgnoreCase)
+                && string.Equals(first.TableName, second.TableName, StringComparison.InvariantCultureIgnoreCase);
+        }
+
+        static bool HasExpectedColumnName(string childColumnName, string parentTableName, string parentColumnName)
+        {
+            return string.Equals(childColumnName, $"{parentTableName}{parentColumnName}", StringComparison.InvariantCultureIgnoreCase)
+                || string.Equals(childColumnName, $"{parentTableName}_{parentColumnName}", StringComparison.InvariantCultureIgnoreCase);
+        }
+
+        static bool HasActualForeignKey(ITableInfo childTable, ITableInfo parentTable, string childColumnName, string parentColumnName)
+        {
+            return (childTable.ForeignKeys ?? Array.Empty<IForeignKeyInfo>())
+                .Where(foreignKey => string.Equals(foreignKey.ParentSchemaName, parentTable.Schema, StringComparison.InvariantCultureIgnoreCase)
+                    && string.Equals(foreignKey.ParentTableName, parentTable.TableName, StringComparison.InvariantCultureIgnoreCase))
+                .SelectMany(foreignKey => foreignKey.Columns)
+                .Any(column => string.Equals(column.ChildColumnName, childColumnName, StringComparison.InvariantCultureIgnoreCase)
+                    && string.Equals(column.ParentColumnName, parentColumnName, StringComparison.InvariantCultureIgnoreCase));
         }
 
         
