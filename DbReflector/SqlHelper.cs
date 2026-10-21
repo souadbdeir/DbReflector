@@ -408,9 +408,9 @@ End
 drop table if exists TableColumns;create table TableColumns
 (
     application_name nvarchar(50) not null
-    ,TABLE_SCHEMA nvarchar(50) not null
-    ,TABLE_NAME nvarchar(50) not null
-    ,COLUMN_NAME nvarchar(50) not null
+    ,TABLE_SCHEMA nvarchar(128) not null
+    ,TABLE_NAME nvarchar(128) not null
+    ,COLUMN_NAME nvarchar(128) not null
     ,IsPrimaryKey bit not null
     ,IsForeignKey bit  not null
     ,IsKey bit not null
@@ -423,9 +423,9 @@ drop table if exists TableColumns;create table TableColumns
     ,CHARACTER_MAXIMUM_LENGTH int
     ,ORDINAL_POSITION int not null
     ,NUMERIC_PRECISION tinyint
-    ,DOMAIN_NAME nvarchar(50)
+    ,DOMAIN_NAME nvarchar(128)
     ,IGNORE_COLUMN bit not null default(0)
-    ,COLUMN_ALIAS nvarchar(50) not null
+    ,COLUMN_ALIAS nvarchar(128) not null
 )
 ;create unique index u_bTb_tblcols on TableColumns (application_name, TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME)
 ;create unique index u_bTb_tblcols_colalias on TableColumns (application_name, TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME)";
@@ -433,8 +433,8 @@ drop table if exists TableColumns;create table TableColumns
 drop table if exists PrimaryKeys;create table PrimaryKeys
 (
     application_name nvarchar(50) not null,
-    schema_name nvarchar(50) not null,
-    table_name nvarchar(50) not null,
+    schema_name nvarchar(128) not null,
+    table_name nvarchar(128) not null,
     constraint_name nvarchar(128) not null,
     column_name nvarchar(128) not null,
     ordinal_position int not null
@@ -444,8 +444,8 @@ drop table if exists PrimaryKeys;create table PrimaryKeys
 drop table if exists UniqueConstraints;create table UniqueConstraints
 (
     application_name nvarchar(50) not null,
-    schema_name nvarchar(50) not null,
-    table_name nvarchar(50) not null,
+    schema_name nvarchar(128) not null,
+    table_name nvarchar(128) not null,
     constraint_name nvarchar(128) not null,
     column_name nvarchar(128) not null,
     ordinal_position int not null
@@ -455,8 +455,8 @@ drop table if exists UniqueConstraints;create table UniqueConstraints
 drop table if exists UniqueIndexes;create table UniqueIndexes
 (
     application_name nvarchar(50) not null,
-    schema_name nvarchar(50) not null,
-    table_name nvarchar(50) not null,
+    schema_name nvarchar(128) not null,
+    table_name nvarchar(128) not null,
     constraint_name nvarchar(128) not null,
     column_name nvarchar(128) not null,
     ordinal_position int not null
@@ -638,10 +638,10 @@ select * from source
 drop table if exists TablesAndViews;create table TablesAndViews
 (
     application_name nvarchar(50) not null
-	,table_schema nvarchar(50) not null
-	,table_name nvarchar(50)   not null
+	,table_schema nvarchar(128) not null
+	,table_name nvarchar(128)   not null
 	,table_type nvarchar(50)   not null
-	,table_alias nvarchar(50)  not null
+	,table_alias nvarchar(128)  not null
 	,IgnoreTable bit           not null
     ,is_enum bit not null 
 	,primary_keys nvarchar(2000)        

@@ -120,7 +120,7 @@ namespace DbReflector
                 tableMeta.Columns_NotNullable         = tableMeta.Columns.Values.Where(p => p.IsNullable == false).ToList();
                 tableMeta.Columns_NotNullable_NotKeys = tableMeta.Columns.Values.Where(p => p.IsNullable == false && p.IsKey == false).ToList();
                 tableMeta.Columns_Audit               = tableMeta.Columns.Values.Where(p => p.IsAudit).ToList();
-                tableMeta.Columns_InOrder             = new List<IColumnInfo>(tableMeta.Columns_PrimaryKeys).Concat(tableMeta.Columns_ForeignKeys).Concat(tableMeta.Columns_NotKeys).ToList();
+                tableMeta.Columns_InOrder             = tableMeta.Columns.Values.OrderBy(column => column.OrdinalPosition).ToList();
                 tableMeta.ModifiedById_Column         = tableMeta.Columns.SingleOrDefault(p => p.Value.IsModifiedByUserId).Value;
                 tableMeta.CreatedById_Column          = tableMeta.Columns.SingleOrDefault(p => p.Value.IsCreatedByUserId).Value;
                 tableMeta.CreatedDate_Column          = tableMeta.Columns.SingleOrDefault(p => p.Value.IsCreatedDate).Value;

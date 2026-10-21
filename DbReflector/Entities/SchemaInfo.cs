@@ -58,6 +58,8 @@ namespace DbReflector
             ProcParameters = null;
             TableColumns = null;
             TablesAndViews = null;
+            _Tables = null;
+            _Views = null;
             UdtColumns = null;
             UDTs = null;
             return this;

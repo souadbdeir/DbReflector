@@ -34,3 +34,21 @@ namespace ConsoleApp1
     }
 }
 ```
+
+## Recursive relationship lookup
+
+Call the API with a table name and primary-key column:
+
+```csharp
+var graph = schemaInfo.GetRelatedTablesRecursively("dbo.Parent", "Id");
+```
+
+The returned graph contains:
+
+- `RootTable`: the starting table.
+- `Tables`: every connected table found recursively, including tables the root references and tables that reference it.
+- `ForeignKeys`: actual foreign-key relationships, including constraint name, child table, parent table, and ordered child-to-parent column mappings.
+- `RelationshipCandidates`: possible name-based relationships where no foreign-key constraint exists. Each candidate includes the child table/column, parent table/column, and `IsInferred = true`.
+- Each table in `Tables` also contains its columns, primary key, unique constraints, unique indexes, outgoing foreign keys, and triggers.
+
+If the starting table or primary-key column is not found, the API returns an empty graph.

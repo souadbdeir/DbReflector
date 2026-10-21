@@ -75,7 +75,7 @@ namespace DbReflector
         /// </summary>
         public IReadOnlyList<IColumnInfo> Columns_NotKeys { get; internal set; }
         /// <summary>
-        /// All the columns, first the primary keys, then the foreign keys, and finally the non-key columns
+        /// All columns in database ordinal position order, without duplicates.
         /// </summary>
         public IReadOnlyList<IColumnInfo> Columns_InOrder { get; internal set; }
         /// <summary>

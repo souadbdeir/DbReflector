@@ -24,6 +24,7 @@ public class KeyMetadata
         Assert.That(table.UniqueConstraints[0].Columns[0].ColumnName, Is.EqualTo("Code"));
         Assert.That(table.UniqueIndexes.Select(key => key.IndexName), Is.EqualTo(new[] { "UX_Example_Name" }));
         Assert.That(table.UniqueIndexes[0].Columns[0].ColumnName, Is.EqualTo("Name"));
+        Assert.That(table.Columns_InOrder.Select(column => column.ColumnName), Is.EqualTo(new[] { "TenantId", "Id", "Code", "Name" }));
     }
 
     private sealed class InMemoryFactory : BaseDataTableFactory
