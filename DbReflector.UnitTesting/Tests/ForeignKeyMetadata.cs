@@ -36,6 +36,11 @@ public class ForeignKeyMetadata
         Assert.That(inferred[0].IsInferred, Is.True);
         Assert.That(inferred[0].ChildTableName, Is.EqualTo("InferredChild"));
         Assert.That(inferred[0].ChildColumnName, Is.EqualTo("ParentId"));
+
+        var graph = schema.GetRelatedTablesRecursively("Parent", "Id");
+        Assert.That(graph.Tables.Select(table => table.TableName), Is.EquivalentTo(new[] { "Parent", "Child", "InferredChild" }));
+        Assert.That(graph.ForeignKeys.Select(key => key.ConstraintName), Is.EqualTo(new[] { "FK_Child_Parent" }));
+        Assert.That(graph.RelationshipCandidates.Select(candidate => candidate.ChildTableName), Is.EqualTo(new[] { "InferredChild" }));
     }
 
     private sealed class InMemoryFactory : BaseDataTableFactory

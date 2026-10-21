@@ -17,5 +17,7 @@ public interface ISchemaInfo
     IReadOnlyList<IForeignKeyInfo> GetForeignKeysReferencing(string tableName, string primaryKeyColumnName);
     // Finds possible child columns by matching the parent table and primary-key names; this is not necessarily a foreign-key relationship.
     IReadOnlyList<IRelationshipCandidateInfo> FindRelationshipCandidates(string tableName, string primaryKeyColumnName);
+    // Starting from a table and primary-key column, recursively returns connected tables in both directions.
+    IRelationshipGraphInfo GetRelatedTablesRecursively(string tableName, string primaryKeyColumnName);
     ISchemaInfo Refresh();
 }
