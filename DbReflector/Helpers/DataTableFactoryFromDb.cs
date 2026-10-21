@@ -11,7 +11,7 @@ namespace DbReflector
             _sqlHelper = SqlHelper.CreateInstance(connectionString, applicationName, refreshMetadata);
 
             var sw = new Stopwatch();
-            System.Console.Write("retrieving model from 6 select statements..");
+            System.Console.Write("retrieving model from 7 select statements..");
             sw.Start();
             TablesAndViews = new TablesAndViewsDataSet(
                 _sqlHelper.GetDataTable($"select * from TablesAndViews where application_name = '{applicationName}'", "TablesAndViews")
@@ -20,6 +20,7 @@ namespace DbReflector
                 ,_sqlHelper.GetDataTable($"select * from UniqueConstraints where application_name = '{applicationName}'", "UniqueConstraints")
                 ,_sqlHelper.GetDataTable($"select * from UniqueIndexes where application_name = '{applicationName}'", "UniqueIndexes")
                 ,_sqlHelper.GetDataTable($"select * from ForeignKeys where application_name = '{applicationName}'", "ForeignKeys")
+                ,_sqlHelper.GetDataTable($"select * from Triggers where application_name = '{applicationName}'", "Triggers")
             );
 
             Procs = new ProcsDataSet(

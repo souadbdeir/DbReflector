@@ -49,6 +49,7 @@ namespace DbReflector
         public IReadOnlyList<IUniqueConstraintInfo> UniqueConstraints { get; internal set; }
         public IReadOnlyList<IUniqueIndexInfo> UniqueIndexes { get; internal set; }
         public IReadOnlyList<IForeignKeyInfo> ForeignKeys { get; internal set; }
+        public IReadOnlyList<ITriggerInfo> Triggers { get; internal set; }
         public string NewKeyIdCsType => PrimaryKey?.CSharpType;
         public string NewKeyId => PrimaryKey != null ? $"New{PrimaryKey.ColumnName}" : "_noKey";
 

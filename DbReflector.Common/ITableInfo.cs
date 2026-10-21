@@ -50,6 +50,11 @@ public interface ITableInfo : ISchemaObjectInfo
     /// Foreign-key relationships where this table is the child table.
     /// </summary>
     IReadOnlyList<IForeignKeyInfo> ForeignKeys { get; }
+
+    /// <summary>
+    /// Triggers defined on this table.
+    /// </summary>
+    IReadOnlyList<ITriggerInfo> Triggers { get; }
     #endregion
     
     string NewKeyId { get; }

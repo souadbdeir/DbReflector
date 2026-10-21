@@ -14,13 +14,19 @@ namespace DbReflector.Helpers
             const string UNIQUE_CONSTRAINTS = "UniqueConstraints";
             const string UNIQUE_INDEXES = "UniqueIndexes";
             const string FOREIGN_KEYS = "ForeignKeys";
+            const string TRIGGERS = "Triggers";
 
             public TablesAndViewsDataSet(DataTable tablesAndViews, DataTable tableColumns, DataTable primaryKeys, DataTable uniqueConstraints, DataTable uniqueIndexes)
-                : this(tablesAndViews, tableColumns, primaryKeys, uniqueConstraints, uniqueIndexes, CreateForeignKeysTable())
+                : this(tablesAndViews, tableColumns, primaryKeys, uniqueConstraints, uniqueIndexes, CreateForeignKeysTable(), CreateTriggersTable())
             {
             }
 
             public TablesAndViewsDataSet(DataTable tablesAndViews, DataTable tableColumns, DataTable primaryKeys, DataTable uniqueConstraints, DataTable uniqueIndexes, DataTable foreignKeys)
+                : this(tablesAndViews, tableColumns, primaryKeys, uniqueConstraints, uniqueIndexes, foreignKeys, CreateTriggersTable())
+            {
+            }
+
+            public TablesAndViewsDataSet(DataTable tablesAndViews, DataTable tableColumns, DataTable primaryKeys, DataTable uniqueConstraints, DataTable uniqueIndexes, DataTable foreignKeys, DataTable triggers)
             {
                 tablesAndViews.TableName = TABLES_AND_VIEWS;
                 Tables.Add(tablesAndViews);
@@ -39,6 +45,9 @@ namespace DbReflector.Helpers
 
                 foreignKeys.TableName = FOREIGN_KEYS;
                 Tables.Add(foreignKeys);
+
+                triggers.TableName = TRIGGERS;
+                Tables.Add(triggers);
             }
 
             static DataTable CreateForeignKeysTable()
@@ -48,12 +57,21 @@ namespace DbReflector.Helpers
                     table.Columns.Add(name);
                 return table;
             }
+
+            static DataTable CreateTriggersTable()
+            {
+                var table = new DataTable();
+                foreach (var name in new[] { "application_name", "schema_name", "table_name", "trigger_name", "definition", "trigger_type", "trigger_timing", "is_enabled" })
+                    table.Columns.Add(name);
+                return table;
+            }
             public DataTable TablesAndViews => Tables[TABLES_AND_VIEWS];
             public DataTable TableColumns => Tables[TABLE_COLUMNS];
             public DataTable PrimaryKeys => Tables[PRIMARY_KEYS];
             public DataTable UniqueConstraints => Tables[UNIQUE_CONSTRAINTS];
             public DataTable UniqueIndexes => Tables[UNIQUE_INDEXES];
             public DataTable ForeignKeys => Tables[FOREIGN_KEYS];
+            public DataTable Triggers => Tables[TRIGGERS];
         }
 
         public class ProcsDataSet: DataSet

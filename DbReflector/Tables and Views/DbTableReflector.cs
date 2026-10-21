@@ -75,6 +75,7 @@ namespace DbReflector
             var uniqueIndexes = ReadColumnDefinitions(factory.TablesAndViews.UniqueIndexes,
                 (schema, table, name, columns) => (IUniqueIndexInfo)new UniqueIndexInfo(schema, table, name, columns));
             var foreignKeys = ReadForeignKeys(factory.TablesAndViews.ForeignKeys);
+            var triggers = ReadTriggers(factory.TablesAndViews.Triggers);
             
             // Get the Tables and Views
             var TablesAndViews = new Dictionary<string, ITableInfo>(StringComparer.InvariantCultureIgnoreCase);
@@ -128,6 +129,7 @@ namespace DbReflector
                 tableMeta.UniqueConstraints            = uniqueConstraints.TryGetValue(tableMeta.DictionaryKey, out var constraints) ? constraints : new List<IUniqueConstraintInfo>();
                 tableMeta.UniqueIndexes                = uniqueIndexes.TryGetValue(tableMeta.DictionaryKey, out var indexes) ? indexes : new List<IUniqueIndexInfo>();
                 tableMeta.ForeignKeys                  = foreignKeys.TryGetValue(tableMeta.DictionaryKey, out var relationships) ? relationships : new List<IForeignKeyInfo>();
+                tableMeta.Triggers                      = triggers.TryGetValue(tableMeta.DictionaryKey, out var tableTriggers) ? tableTriggers : new List<ITriggerInfo>();
 
                 if (!TablesAndViews.ContainsKey(tableMeta.DictionaryKey)) //in case the table has a compound primary key then add it only once
                     TablesAndViews.Add(tableMeta.DictionaryKey, tableMeta);
@@ -194,6 +196,28 @@ namespace DbReflector
                                         DataRowHelper.GetInt32(row, "ordinal_position")))
                                     .ToList());
                         })
+                        .ToList(),
+                    StringComparer.InvariantCultureIgnoreCase);
+        }
+
+        // Reads trigger rows and groups them by the table they belong to.
+        static Dictionary<string, List<ITriggerInfo>> ReadTriggers(DataTable table)
+        {
+            return table.Rows.Cast<DataRow>()
+                .GroupBy(row =>
+                    $"{DataRowHelper.GetString(row, "schema_name")}.{DataRowHelper.GetString(row, "table_name")}",
+                    StringComparer.InvariantCultureIgnoreCase)
+                .ToDictionary(
+                    tableGroup => tableGroup.Key,
+                    tableGroup => tableGroup
+                        .Select(row => (ITriggerInfo)new TriggerInfo(
+                            DataRowHelper.GetString(row, "trigger_name"),
+                            DataRowHelper.GetString(row, "schema_name"),
+                            DataRowHelper.GetString(row, "table_name"),
+                            DataRowHelper.GetString(row, "definition"),
+                            DataRowHelper.GetString(row, "trigger_type"),
+                            DataRowHelper.GetString(row, "trigger_timing"),
+                            DataRowHelper.GetBool(row, "is_enabled")))
                         .ToList(),
                     StringComparer.InvariantCultureIgnoreCase);
         }

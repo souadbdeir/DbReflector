@@ -60,6 +60,7 @@ public class SqlHelper
             ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_UniqueConstraints_16));
             ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_UniqueIndexes_17));
             ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_ForeignKeys_21));
+            ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_Triggers_23));
             ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_TablesAndViews_4));
             ExecuteSqliteNonQuery(TransformSql(Procs.CreateTable_Procs_7));
             ExecuteSqliteNonQuery(TransformSql(Procs.CreateTable_ProcParams_9));
@@ -72,6 +73,7 @@ public class SqlHelper
             InsertIntoKeyMetadata(ExecuteDataTable(TransformSql(Tables.RefreshTable_UniqueConstraints_19)), "UniqueConstraints");
             InsertIntoKeyMetadata(ExecuteDataTable(TransformSql(Tables.RefreshTable_UniqueIndexes_20)), "UniqueIndexes");
             InsertIntoForeignKeyMetadata(ExecuteDataTable(TransformSql(Tables.RefreshTable_ForeignKeys_22)));
+            InsertIntoTriggerMetadata(ExecuteDataTable(TransformSql(Tables.RefreshTable_Triggers_24)));
             InsertIntoTablesAndViews(ExecuteDataTable(TransformSql(Tables.RefreshTable_TablesAndViews_5)));
             UpdateTablesAndViewsPrimaryKeysColumn(ExecuteSqliteDataTable(TransformSql(Tables.AddPrimaryKeysToTablesAndViews_6)));
             UpdateTablesAndViewsForeignKeysColumn(ExecuteSqliteDataTable(TransformSql(Tables.AddForeignKeysToTablesAndViews_6_1)));
@@ -126,6 +128,17 @@ public class SqlHelper
     child_column_name nvarchar(128) not null,
     parent_column_name nvarchar(128) not null,
     ordinal_position int not null
+)");
+        ExecuteSqliteNonQuery(@"create table if not exists Triggers
+(
+    application_name nvarchar(50) not null,
+    schema_name nvarchar(128) not null,
+    table_name nvarchar(128) not null,
+    trigger_name nvarchar(128) not null,
+    definition text,
+    trigger_type nvarchar(50) not null,
+    trigger_timing nvarchar(20) not null,
+    is_enabled bit not null
 )");
     }
 
@@ -348,6 +361,20 @@ public class SqlHelper
         _SqliteCommand.ExecuteNonQuery();
     }
 
+    void InsertIntoTriggerMetadata(DataTable table)
+    {
+        if (table.Rows.Count == 0) return;
+
+        var values = new List<string>();
+        foreach (DataRow row in table.Rows)
+        {
+            values.Add($"('{row["application_name"]}','{row["schema_name"]}','{row["table_name"]}','{row["trigger_name"]}','{row["definition"].ToString().Replace("'", "''")}','{row["trigger_type"]}','{row["trigger_timing"]}','{row["is_enabled"]}')");
+        }
+
+        _SqliteCommand.CommandText = $"insert into Triggers (application_name,schema_name,table_name,trigger_name,definition,trigger_type,trigger_timing,is_enabled) values {string.Join(",", values)}";
+        _SqliteCommand.ExecuteNonQuery();
+    }
+
     void InsertIntoTablesAndViews(DataTable table)
     {
         var sql = $"INSERT INTO TablesAndViews(application_name,table_schema,table_name,table_type,table_alias,IgnoreTable,is_enum) VALUES";
@@ -500,6 +527,36 @@ where child_table.is_ms_shipped = 0
   and parent_table.is_ms_shipped = 0
   and child_schema.name not in (<@excludedSchemasList@>)
   and parent_schema.name not in (<@excludedSchemasList@>)";
+        public const string CreateTable_Triggers_23 = @"
+drop table if exists Triggers;create table Triggers
+(
+    application_name nvarchar(50) not null,
+    schema_name nvarchar(128) not null,
+    table_name nvarchar(128) not null,
+    trigger_name nvarchar(128) not null,
+    definition text,
+    trigger_type nvarchar(50) not null,
+    trigger_timing nvarchar(20) not null,
+    is_enabled bit not null
+)
+;create unique index u_bTb_triggers on Triggers(application_name,schema_name,table_name,trigger_name)";
+        public const string RefreshTable_Triggers_24 = @"
+declare @app varchar(50) = '<@applicationName@>';
+select @app application_name,
+       s.name schema_name,
+       t.name table_name,
+       tr.name trigger_name,
+       sm.definition definition,
+       tr.type_desc trigger_type,
+       cast(case when tr.is_instead_of_trigger = 1 then 'INSTEAD OF' else 'AFTER' end as nvarchar(20)) trigger_timing,
+       cast(case when tr.is_disabled = 1 then 0 else 1 end as bit) is_enabled
+from sys.triggers tr
+inner join sys.tables t on t.object_id = tr.parent_id
+inner join sys.schemas s on s.schema_id = t.schema_id
+left join sys.sql_modules sm on sm.object_id = tr.object_id
+where tr.parent_class = 1
+  and t.is_ms_shipped = 0
+  and s.name not in (<@excludedSchemasList@>)";
         public const string RefreshTable_TableColumns_3 = @"
 declare @app varchar(50) = '<@applicationName@>';
 SET NOCOUNT ON
