@@ -6,7 +6,7 @@ namespace DbReflector;
 public class ColumnInfo : IColumnInfo
 {
     #region Constructors and Factory Methods
-    ColumnInfo(string schema, string table, string column, bool isPrimaryKey, bool isForeignKey, bool isKey, bool isNullable, string dataType, int? maxLength, byte? numericPrecision, string domainName, int ordinalPostion)
+    ColumnInfo(string schema, string table, string column, bool isPrimaryKey, bool isForeignKey, bool isKey, bool isNullable, string dataType, int? maxLength, byte? numericPrecision, string domainName, int ordinalPostion, bool isIdentity, bool isComputed, bool isRowVersion, bool hasDefaultConstraint)
     {
         SchemaName = schema;
         UdtName = table;
@@ -20,12 +20,17 @@ public class ColumnInfo : IColumnInfo
         NumericPrecision = numericPrecision;
         DomainName = domainName;
         OrdinalPosition = ordinalPostion;
+        IsIdentity = isIdentity;
+        IsComputed = isComputed;
+        IsRowVersion = isRowVersion;
+        HasDefaultConstraint = hasDefaultConstraint;
     }
     ColumnInfo()
     {
 
     }
-    public static ColumnInfo CreateIntance(string schema, string table, string column, bool isPrimaryKey, bool isForeignKey, bool isKey, bool isNullable, string dataType, int? maxLength, byte? numericPrecision, string domainName, int ordinalPosition) => new ColumnInfo(schema, table, column, isPrimaryKey, isForeignKey, isKey, isNullable, dataType, maxLength, numericPrecision, domainName, ordinalPosition);
+    public static ColumnInfo CreateIntance(string schema, string table, string column, bool isPrimaryKey, bool isForeignKey, bool isKey, bool isNullable, string dataType, int? maxLength, byte? numericPrecision, string domainName, int ordinalPosition) => new ColumnInfo(schema, table, column, isPrimaryKey, isForeignKey, isKey, isNullable, dataType, maxLength, numericPrecision, domainName, ordinalPosition, false, false, false, false);
+    public static ColumnInfo CreateIntance(string schema, string table, string column, bool isPrimaryKey, bool isForeignKey, bool isKey, bool isNullable, string dataType, int? maxLength, byte? numericPrecision, string domainName, int ordinalPosition, bool isIdentity, bool isComputed, bool isRowVersion, bool hasDefaultConstraint) => new ColumnInfo(schema, table, column, isPrimaryKey, isForeignKey, isKey, isNullable, dataType, maxLength, numericPrecision, domainName, ordinalPosition, isIdentity, isComputed, isRowVersion, hasDefaultConstraint);
     #endregion
 
     #region Properties
@@ -35,6 +40,10 @@ public class ColumnInfo : IColumnInfo
     public string ColumnName { get; }
     public string CleanColumnName => Clean(ColumnName);
     public bool IsNullable { get; private set; }
+    public bool IsComputed { get; private set; }
+    public bool IsIdentity { get; private set; }
+    public bool IsRowVersion { get; private set; }
+    public bool HasDefaultConstraint { get; private set; }
     public string DataType { get; private set; }
     public string DomainName { get; private set; }
     public bool IsPrimaryKey { get; private set; }
