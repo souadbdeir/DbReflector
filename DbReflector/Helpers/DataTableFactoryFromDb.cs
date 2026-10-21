@@ -16,6 +16,10 @@ namespace DbReflector
             TablesAndViews = new TablesAndViewsDataSet(
                 _sqlHelper.GetDataTable($"select * from TablesAndViews where application_name = '{applicationName}'", "TablesAndViews")
                 ,_sqlHelper.GetDataTable($"select * from TableColumns where application_name = '{applicationName}'", "TableColumns")
+                ,_sqlHelper.GetDataTable($"select * from PrimaryKeys where application_name = '{applicationName}'", "PrimaryKeys")
+                ,_sqlHelper.GetDataTable($"select * from UniqueConstraints where application_name = '{applicationName}'", "UniqueConstraints")
+                ,_sqlHelper.GetDataTable($"select * from UniqueIndexes where application_name = '{applicationName}'", "UniqueIndexes")
+                ,_sqlHelper.GetDataTable($"select * from ForeignKeys where application_name = '{applicationName}'", "ForeignKeys")
             );
 
             Procs = new ProcsDataSet(

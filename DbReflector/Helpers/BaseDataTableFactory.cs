@@ -10,17 +10,50 @@ namespace DbReflector.Helpers
         {
             const string TABLES_AND_VIEWS = "TablesAndViews";
             const string TABLE_COLUMNS = "TableColumns";
+            const string PRIMARY_KEYS = "PrimaryKeys";
+            const string UNIQUE_CONSTRAINTS = "UniqueConstraints";
+            const string UNIQUE_INDEXES = "UniqueIndexes";
+            const string FOREIGN_KEYS = "ForeignKeys";
 
-            public TablesAndViewsDataSet(DataTable tablesAndViews, DataTable tableColumns)
+            public TablesAndViewsDataSet(DataTable tablesAndViews, DataTable tableColumns, DataTable primaryKeys, DataTable uniqueConstraints, DataTable uniqueIndexes)
+                : this(tablesAndViews, tableColumns, primaryKeys, uniqueConstraints, uniqueIndexes, CreateForeignKeysTable())
+            {
+            }
+
+            public TablesAndViewsDataSet(DataTable tablesAndViews, DataTable tableColumns, DataTable primaryKeys, DataTable uniqueConstraints, DataTable uniqueIndexes, DataTable foreignKeys)
             {
                 tablesAndViews.TableName = TABLES_AND_VIEWS;
                 Tables.Add(tablesAndViews);
 
                 tableColumns.TableName = TABLE_COLUMNS;
                 Tables.Add(tableColumns);
+
+                primaryKeys.TableName = PRIMARY_KEYS;
+                Tables.Add(primaryKeys);
+
+                uniqueConstraints.TableName = UNIQUE_CONSTRAINTS;
+                Tables.Add(uniqueConstraints);
+
+                uniqueIndexes.TableName = UNIQUE_INDEXES;
+                Tables.Add(uniqueIndexes);
+
+                foreignKeys.TableName = FOREIGN_KEYS;
+                Tables.Add(foreignKeys);
+            }
+
+            static DataTable CreateForeignKeysTable()
+            {
+                var table = new DataTable();
+                foreach (var name in new[] { "application_name", "constraint_name", "child_schema_name", "child_table_name", "parent_schema_name", "parent_table_name", "child_column_name", "parent_column_name", "ordinal_position" })
+                    table.Columns.Add(name);
+                return table;
             }
             public DataTable TablesAndViews => Tables[TABLES_AND_VIEWS];
             public DataTable TableColumns => Tables[TABLE_COLUMNS];
+            public DataTable PrimaryKeys => Tables[PRIMARY_KEYS];
+            public DataTable UniqueConstraints => Tables[UNIQUE_CONSTRAINTS];
+            public DataTable UniqueIndexes => Tables[UNIQUE_INDEXES];
+            public DataTable ForeignKeys => Tables[FOREIGN_KEYS];
         }
 
         public class ProcsDataSet: DataSet

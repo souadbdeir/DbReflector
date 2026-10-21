@@ -17,6 +17,9 @@ public interface ITableInfo : ISchemaObjectInfo
     IReadOnlyList<IColumnInfo> Columns_NotPrimaryKeys { get; }
     IReadOnlyList<IColumnInfo> Columns_Nullable { get; }
     IReadOnlyList<IColumnInfo> Columns_Nullable_NotKeys { get; }
+    /// <summary>
+    /// The table columns participating in the primary key.
+    /// </summary>
     IReadOnlyList<IColumnInfo> Columns_PrimaryKeys { get; }
     IColumnInfo CreatedById_Column { get; }
     IColumnInfo CreatedDate_Column { get; } 
@@ -24,9 +27,29 @@ public interface ITableInfo : ISchemaObjectInfo
     IColumnInfo ModifiedDate_Column { get; }
     
     /// <summary>
-    /// Returns the column that is the primary key of the table.
+    /// Returns the first primary-key column for compatibility with the legacy API.
     /// </summary>
     IColumnInfo PrimaryKey { get; }
+
+    /// <summary>
+    /// The complete primary-key definition, including its name and ordered columns.
+    /// </summary>
+    IPrimaryKeyInfo PrimaryKeyInfo { get; }
+
+    /// <summary>
+    /// Unique constraints defined on the table.
+    /// </summary>
+    IReadOnlyList<IUniqueConstraintInfo> UniqueConstraints { get; }
+
+    /// <summary>
+    /// Unique indexes defined on the table.
+    /// </summary>
+    IReadOnlyList<IUniqueIndexInfo> UniqueIndexes { get; }
+
+    /// <summary>
+    /// Foreign-key relationships where this table is the child table.
+    /// </summary>
+    IReadOnlyList<IForeignKeyInfo> ForeignKeys { get; }
     #endregion
     
     string NewKeyId { get; }

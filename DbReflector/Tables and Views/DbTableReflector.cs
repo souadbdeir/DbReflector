@@ -61,6 +61,20 @@ namespace DbReflector
                 TableColumns.Add(c.DictionaryKey, c);
             }
             schemaInfo.TableColumns = TableColumns;
+
+            // Maps each table name to a list containing its primary-key definition.
+            var primaryKeyDefinitionsByTable = ReadColumnDefinitions(factory.TablesAndViews.PrimaryKeys,
+                (schema, table, name, columns) => (IPrimaryKeyInfo)new PrimaryKeyInfo(schema, table, name, columns));
+            // Maps each table name to its single primary-key definition.
+            var primaryKeyByTable = primaryKeyDefinitionsByTable.ToDictionary(
+                group => group.Key,
+                group => group.Value.Single(),
+                StringComparer.InvariantCultureIgnoreCase);
+            var uniqueConstraints = ReadColumnDefinitions(factory.TablesAndViews.UniqueConstraints,
+                (schema, table, name, columns) => (IUniqueConstraintInfo)new UniqueConstraintInfo(schema, table, name, columns));
+            var uniqueIndexes = ReadColumnDefinitions(factory.TablesAndViews.UniqueIndexes,
+                (schema, table, name, columns) => (IUniqueIndexInfo)new UniqueIndexInfo(schema, table, name, columns));
+            var foreignKeys = ReadForeignKeys(factory.TablesAndViews.ForeignKeys);
             
             // Get the Tables and Views
             var TablesAndViews = new Dictionary<string, ITableInfo>(StringComparer.InvariantCultureIgnoreCase);
@@ -110,6 +124,10 @@ namespace DbReflector
                 tableMeta.CreatedById_Column          = tableMeta.Columns.SingleOrDefault(p => p.Value.IsCreatedByUserId).Value;
                 tableMeta.CreatedDate_Column          = tableMeta.Columns.SingleOrDefault(p => p.Value.IsCreatedDate).Value;
                 tableMeta.ModifiedDate_Column         = tableMeta.Columns.SingleOrDefault(p => p.Value.IsModifiedDate).Value;
+                tableMeta.PrimaryKeyInfo               = primaryKeyByTable.TryGetValue(tableMeta.DictionaryKey, out var primaryKey) ? primaryKey : null;
+                tableMeta.UniqueConstraints            = uniqueConstraints.TryGetValue(tableMeta.DictionaryKey, out var constraints) ? constraints : new List<IUniqueConstraintInfo>();
+                tableMeta.UniqueIndexes                = uniqueIndexes.TryGetValue(tableMeta.DictionaryKey, out var indexes) ? indexes : new List<IUniqueIndexInfo>();
+                tableMeta.ForeignKeys                  = foreignKeys.TryGetValue(tableMeta.DictionaryKey, out var relationships) ? relationships : new List<IForeignKeyInfo>();
 
                 if (!TablesAndViews.ContainsKey(tableMeta.DictionaryKey)) //in case the table has a compound primary key then add it only once
                     TablesAndViews.Add(tableMeta.DictionaryKey, tableMeta);
@@ -123,6 +141,80 @@ namespace DbReflector
             schemaInfo.TablesAndViews = TablesAndViews;
 
             return schemaInfo;
+        }
+
+        // Returns: "schema.table": a list of definitions, each with a name and ordered columns.
+        // Example: "dbo.Customer": PK_Customer(CustomerId), UQ_Customer_Email(Email).
+        static Dictionary<string, List<T>> ReadColumnDefinitions<T>(
+            DataTable table,
+            Func<string, string, string, IReadOnlyList<IColumnPositionInfo>, T> create)
+        {
+            var result = new Dictionary<string, List<T>>(StringComparer.InvariantCultureIgnoreCase);
+            foreach (var tableGroup in KeyGroups(table).GroupBy(
+                row => $"{DataRowHelper.GetString(row.First(), "schema_name")}.{DataRowHelper.GetString(row.First(), "table_name")}",
+                StringComparer.InvariantCultureIgnoreCase))
+            {
+                result[tableGroup.Key] = tableGroup.Select(definitionGroup =>
+                {
+                    var first = definitionGroup.First();
+                    return create(
+                        DataRowHelper.GetString(first, "schema_name"),
+                        DataRowHelper.GetString(first, "table_name"),
+                        DataRowHelper.GetString(first, "constraint_name"),
+                        ReadOrderedColumns(definitionGroup));
+                }).ToList();
+            }
+            return result;
+        }
+
+        // Reads the ForeignKeys DataTable and returns each child table's foreign keys with child-to-parent column mappings.
+        static Dictionary<string, List<IForeignKeyInfo>> ReadForeignKeys(DataTable table)
+        {
+            return table.Rows.Cast<DataRow>()
+                .GroupBy(row =>
+                    $"{DataRowHelper.GetString(row, "child_schema_name")}.{DataRowHelper.GetString(row, "child_table_name")}",
+                    StringComparer.InvariantCultureIgnoreCase)
+                .ToDictionary(
+                    tableGroup => tableGroup.Key,
+                    tableGroup => tableGroup
+                        .GroupBy(row => DataRowHelper.GetString(row, "constraint_name"), StringComparer.InvariantCultureIgnoreCase)
+                        .Select(group =>
+                        {
+                            var first = group.First();
+                            return (IForeignKeyInfo)new ForeignKeyInfo(
+                                DataRowHelper.GetString(first, "constraint_name"),
+                                DataRowHelper.GetString(first, "child_schema_name"),
+                                DataRowHelper.GetString(first, "child_table_name"),
+                                DataRowHelper.GetString(first, "parent_schema_name"),
+                                DataRowHelper.GetString(first, "parent_table_name"),
+                                group.OrderBy(row => DataRowHelper.GetInt32(row, "ordinal_position"))
+                                    .Select(row => (IForeignKeyColumnInfo)new ForeignKeyColumnInfo(
+                                        DataRowHelper.GetString(row, "child_column_name"),
+                                        DataRowHelper.GetString(row, "parent_column_name"),
+                                        DataRowHelper.GetInt32(row, "ordinal_position")))
+                                    .ToList());
+                        })
+                        .ToList(),
+                    StringComparer.InvariantCultureIgnoreCase);
+        }
+
+        // Groups primary-key and unique-definition rows by schema, table, and object name.
+        static IEnumerable<IGrouping<string, DataRow>> KeyGroups(DataTable table)
+        {
+            return table.Rows.Cast<DataRow>().GroupBy(row =>
+                $"{DataRowHelper.GetString(row, "schema_name")}.{DataRowHelper.GetString(row, "table_name")}.{DataRowHelper.GetString(row, "constraint_name")}",
+                StringComparer.InvariantCultureIgnoreCase);
+        }
+
+        // Sorts columns by their position within the primary key or unique definition.
+        static IReadOnlyList<IColumnPositionInfo> ReadOrderedColumns(IEnumerable<DataRow> rows)
+        {
+            return rows
+                .OrderBy(row => DataRowHelper.GetInt32(row, "ordinal_position"))
+                .Select(row => (IColumnPositionInfo)new ColumnPositionInfo(
+                    DataRowHelper.GetString(row, "column_name"),
+                    DataRowHelper.GetInt32(row, "ordinal_position")))
+                .ToList();
         }
 
     }

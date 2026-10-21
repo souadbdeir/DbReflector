@@ -56,6 +56,10 @@ public class SqlHelper
         {
             //create the configuration tables in an Sqlite database
             ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_TableColumns_2));
+            ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_PrimaryKeys_15));
+            ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_UniqueConstraints_16));
+            ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_UniqueIndexes_17));
+            ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_ForeignKeys_21));
             ExecuteSqliteNonQuery(TransformSql(Tables.CreateTable_TablesAndViews_4));
             ExecuteSqliteNonQuery(TransformSql(Procs.CreateTable_Procs_7));
             ExecuteSqliteNonQuery(TransformSql(Procs.CreateTable_ProcParams_9));
@@ -64,6 +68,10 @@ public class SqlHelper
             ExecuteSqliteNonQuery(TransformSql(Udts.CreateTable_UdtColumns_13));
 
             InsertIntoTableColumns(ExecuteDataTable(TransformSql(Tables.RefreshTable_TableColumns_3)));
+            InsertIntoKeyMetadata(ExecuteDataTable(TransformSql(Tables.RefreshTable_PrimaryKeys_18)), "PrimaryKeys");
+            InsertIntoKeyMetadata(ExecuteDataTable(TransformSql(Tables.RefreshTable_UniqueConstraints_19)), "UniqueConstraints");
+            InsertIntoKeyMetadata(ExecuteDataTable(TransformSql(Tables.RefreshTable_UniqueIndexes_20)), "UniqueIndexes");
+            InsertIntoForeignKeyMetadata(ExecuteDataTable(TransformSql(Tables.RefreshTable_ForeignKeys_22)));
             InsertIntoTablesAndViews(ExecuteDataTable(TransformSql(Tables.RefreshTable_TablesAndViews_5)));
             UpdateTablesAndViewsPrimaryKeysColumn(ExecuteSqliteDataTable(TransformSql(Tables.AddPrimaryKeysToTablesAndViews_6)));
             UpdateTablesAndViewsForeignKeysColumn(ExecuteSqliteDataTable(TransformSql(Tables.AddForeignKeysToTablesAndViews_6_1)));
@@ -75,6 +83,50 @@ public class SqlHelper
         }
 
         EnsureTableColumnMetadataColumns();
+        EnsureKeyMetadataTables();
+    }
+
+    void EnsureKeyMetadataTables()
+    {
+        ExecuteSqliteNonQuery(@"create table if not exists PrimaryKeys
+(
+    application_name nvarchar(50) not null,
+    schema_name nvarchar(50) not null,
+    table_name nvarchar(50) not null,
+    constraint_name nvarchar(128) not null,
+    column_name nvarchar(128) not null,
+    ordinal_position int not null
+)");
+        ExecuteSqliteNonQuery(@"create table if not exists UniqueConstraints
+(
+    application_name nvarchar(50) not null,
+    schema_name nvarchar(50) not null,
+    table_name nvarchar(50) not null,
+    constraint_name nvarchar(128) not null,
+    column_name nvarchar(128) not null,
+    ordinal_position int not null
+)");
+        ExecuteSqliteNonQuery(@"create table if not exists UniqueIndexes
+(
+    application_name nvarchar(50) not null,
+    schema_name nvarchar(50) not null,
+    table_name nvarchar(50) not null,
+    constraint_name nvarchar(128) not null,
+    column_name nvarchar(128) not null,
+    ordinal_position int not null
+)");
+        ExecuteSqliteNonQuery(@"create table if not exists ForeignKeys
+(
+    application_name nvarchar(50) not null,
+    constraint_name nvarchar(128) not null,
+    child_schema_name nvarchar(128) not null,
+    child_table_name nvarchar(128) not null,
+    parent_schema_name nvarchar(128) not null,
+    parent_table_name nvarchar(128) not null,
+    child_column_name nvarchar(128) not null,
+    parent_column_name nvarchar(128) not null,
+    ordinal_position int not null
+)");
     }
 
     void EnsureTableColumnMetadataColumns()
@@ -268,6 +320,34 @@ public class SqlHelper
         _SqliteCommand.ExecuteNonQuery();
     }
 
+    void InsertIntoKeyMetadata(DataTable table, string tableName)
+    {
+        if (table.Rows.Count == 0) return;
+
+        var values = new List<string>();
+        foreach (DataRow row in table.Rows)
+        {
+            values.Add($"('{row["application_name"]}','{row["schema_name"]}','{row["table_name"]}','{row["constraint_name"]}','{row["column_name"]}','{row["ordinal_position"]}')");
+        }
+
+        _SqliteCommand.CommandText = $"insert into {tableName} (application_name,schema_name,table_name,constraint_name,column_name,ordinal_position) values {string.Join(",", values)}";
+        _SqliteCommand.ExecuteNonQuery();
+    }
+
+    void InsertIntoForeignKeyMetadata(DataTable table)
+    {
+        if (table.Rows.Count == 0) return;
+
+        var values = new List<string>();
+        foreach (DataRow row in table.Rows)
+        {
+            values.Add($"('{row["application_name"]}','{row["constraint_name"]}','{row["child_schema_name"]}','{row["child_table_name"]}','{row["parent_schema_name"]}','{row["parent_table_name"]}','{row["child_column_name"]}','{row["parent_column_name"]}','{row["ordinal_position"]}')");
+        }
+
+        _SqliteCommand.CommandText = $"insert into ForeignKeys (application_name,constraint_name,child_schema_name,child_table_name,parent_schema_name,parent_table_name,child_column_name,parent_column_name,ordinal_position) values {string.Join(",", values)}";
+        _SqliteCommand.ExecuteNonQuery();
+    }
+
     void InsertIntoTablesAndViews(DataTable table)
     {
         var sql = $"INSERT INTO TablesAndViews(application_name,table_schema,table_name,table_type,table_alias,IgnoreTable,is_enum) VALUES";
@@ -322,6 +402,104 @@ drop table if exists TableColumns;create table TableColumns
 )
 ;create unique index u_bTb_tblcols on TableColumns (application_name, TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME)
 ;create unique index u_bTb_tblcols_colalias on TableColumns (application_name, TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME)";
+        public const string CreateTable_PrimaryKeys_15 = @"
+drop table if exists PrimaryKeys;create table PrimaryKeys
+(
+    application_name nvarchar(50) not null,
+    schema_name nvarchar(50) not null,
+    table_name nvarchar(50) not null,
+    constraint_name nvarchar(128) not null,
+    column_name nvarchar(128) not null,
+    ordinal_position int not null
+)
+;create unique index u_bTb_primarykeys on PrimaryKeys(application_name,schema_name,table_name,constraint_name,column_name)";
+        public const string CreateTable_UniqueConstraints_16 = @"
+drop table if exists UniqueConstraints;create table UniqueConstraints
+(
+    application_name nvarchar(50) not null,
+    schema_name nvarchar(50) not null,
+    table_name nvarchar(50) not null,
+    constraint_name nvarchar(128) not null,
+    column_name nvarchar(128) not null,
+    ordinal_position int not null
+)
+;create unique index u_bTb_uniqueconstraints on UniqueConstraints(application_name,schema_name,table_name,constraint_name,column_name)";
+        public const string CreateTable_UniqueIndexes_17 = @"
+drop table if exists UniqueIndexes;create table UniqueIndexes
+(
+    application_name nvarchar(50) not null,
+    schema_name nvarchar(50) not null,
+    table_name nvarchar(50) not null,
+    constraint_name nvarchar(128) not null,
+    column_name nvarchar(128) not null,
+    ordinal_position int not null
+)
+;create unique index u_bTb_uniqueindexes on UniqueIndexes(application_name,schema_name,table_name,constraint_name,column_name)";
+        public const string RefreshTable_PrimaryKeys_18 = @"
+declare @app varchar(50) = '<@applicationName@>';
+select @app application_name, s.name schema_name, t.name table_name, i.name constraint_name, c.name column_name, ic.key_ordinal ordinal_position
+from sys.tables t
+inner join sys.schemas s on s.schema_id = t.schema_id
+inner join sys.indexes i on i.object_id = t.object_id and i.is_primary_key = 1
+inner join sys.index_columns ic on ic.object_id = i.object_id and ic.index_id = i.index_id and ic.key_ordinal > 0
+inner join sys.columns c on c.object_id = ic.object_id and c.column_id = ic.column_id
+where t.is_ms_shipped = 0 and s.name not in (<@excludedSchemasList@>)";
+        public const string RefreshTable_UniqueConstraints_19 = @"
+declare @app varchar(50) = '<@applicationName@>';
+select @app application_name, s.name schema_name, t.name table_name, kc.name constraint_name, c.name column_name, ic.key_ordinal ordinal_position
+from sys.key_constraints kc
+inner join sys.tables t on t.object_id = kc.parent_object_id
+inner join sys.schemas s on s.schema_id = t.schema_id
+inner join sys.index_columns ic on ic.object_id = kc.parent_object_id and ic.index_id = kc.unique_index_id and ic.key_ordinal > 0
+inner join sys.columns c on c.object_id = ic.object_id and c.column_id = ic.column_id
+where kc.type = 'UQ' and t.is_ms_shipped = 0 and s.name not in (<@excludedSchemasList@>)";
+        public const string RefreshTable_UniqueIndexes_20 = @"
+declare @app varchar(50) = '<@applicationName@>';
+select @app application_name, s.name schema_name, t.name table_name, i.name constraint_name, c.name column_name, ic.key_ordinal ordinal_position
+from sys.indexes i
+inner join sys.tables t on t.object_id = i.object_id
+inner join sys.schemas s on s.schema_id = t.schema_id
+inner join sys.index_columns ic on ic.object_id = i.object_id and ic.index_id = i.index_id and ic.key_ordinal > 0
+inner join sys.columns c on c.object_id = ic.object_id and c.column_id = ic.column_id
+where i.is_unique = 1 and i.is_primary_key = 0 and i.is_unique_constraint = 0 and i.is_hypothetical = 0
+  and t.is_ms_shipped = 0 and s.name not in (<@excludedSchemasList@>)";
+        public const string CreateTable_ForeignKeys_21 = @"
+drop table if exists ForeignKeys;create table ForeignKeys
+(
+    application_name nvarchar(50) not null,
+    constraint_name nvarchar(128) not null,
+    child_schema_name nvarchar(128) not null,
+    child_table_name nvarchar(128) not null,
+    parent_schema_name nvarchar(128) not null,
+    parent_table_name nvarchar(128) not null,
+    child_column_name nvarchar(128) not null,
+    parent_column_name nvarchar(128) not null,
+    ordinal_position int not null
+)
+;create unique index u_bTb_foreignkeys on ForeignKeys(application_name,child_schema_name,child_table_name,constraint_name,ordinal_position)";
+        public const string RefreshTable_ForeignKeys_22 = @"
+declare @app varchar(50) = '<@applicationName@>';
+select @app application_name,
+       fk.name constraint_name,
+       child_schema.name child_schema_name,
+       child_table.name child_table_name,
+       parent_schema.name parent_schema_name,
+       parent_table.name parent_table_name,
+       child_column.name child_column_name,
+       parent_column.name parent_column_name,
+       fkc.constraint_column_id ordinal_position
+from sys.foreign_keys fk
+inner join sys.tables child_table on child_table.object_id = fk.parent_object_id
+inner join sys.schemas child_schema on child_schema.schema_id = child_table.schema_id
+inner join sys.tables parent_table on parent_table.object_id = fk.referenced_object_id
+inner join sys.schemas parent_schema on parent_schema.schema_id = parent_table.schema_id
+inner join sys.foreign_key_columns fkc on fkc.constraint_object_id = fk.object_id
+inner join sys.columns child_column on child_column.object_id = fkc.parent_object_id and child_column.column_id = fkc.parent_column_id
+inner join sys.columns parent_column on parent_column.object_id = fkc.referenced_object_id and parent_column.column_id = fkc.referenced_column_id
+where child_table.is_ms_shipped = 0
+  and parent_table.is_ms_shipped = 0
+  and child_schema.name not in (<@excludedSchemasList@>)
+  and parent_schema.name not in (<@excludedSchemasList@>)";
         public const string RefreshTable_TableColumns_3 = @"
 declare @app varchar(50) = '<@applicationName@>';
 SET NOCOUNT ON
