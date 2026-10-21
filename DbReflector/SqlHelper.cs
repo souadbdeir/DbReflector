@@ -307,29 +307,77 @@ declare @app varchar(50) = '<@applicationName@>';
 SET NOCOUNT ON
 SET XACT_ABORT ON;
 
-with cte as( 
-SELECT 
-c.TABLE_SCHEMA ,C.TABLE_NAME ,c.COLUMN_NAME, TC.CONSTRAINT_TYPE ,cast(iif(tc.CONSTRAINT_TYPE='PRIMARY KEY',1,0) as INT) IsPrimaryKey ,cast(iif(tc.CONSTRAINT_TYPE='FOREIGN KEY',1,0) as INT) IsForeignKey 
-,cast(iif(tc.CONSTRAINT_TYPE IS null,0,1) as INT) IsKey ,cast(iif(c.is_nullable='NO',0,1) as bit) IsNullable ,c.DATA_TYPE ,c.CHARACTER_MAXIMUM_LENGTH ,c.NUMERIC_PRECISION ,C.DOMAIN_NAME ,C.ORDINAL_POSITION 
-FROM information_schema.COLUMNS c 
-LEFT JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE u ON c.table_schema=u.table_schema AND c.table_name=u.table_name AND c.column_name=u.column_name 
-LEFT JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc ON tc.CONSTRAINT_NAME=U.CONSTRAINT_NAME 
-where 
-	c.table_name <> 'database_firewall_rules' 
-	and c.table_name <> 'sysdiagrams' 
-	and c.table_name <> '__MigrationHistory' 
-	and c.column_name not like 'graph_id_%' 
-	and c.column_name not like '$edge_id_%' 
-	and c.column_name not like 'to_obj_id_%' 
-	and c.column_name not like 'from_obj_id_%' 
-	and c.column_name not like '$to_obj_id_%' 
-	and c.column_name not like '$to_id_%' 
-	and c.column_name not like 'to_id_%' 
-	and c.column_name not like '$node_id_%' 
-	and c.column_name not like '$from_id_%'
-	and c.table_schema not in (<@excludedSchemasList@>) 
-),
-	source as (SELECT @app as application_name, c.TABLE_SCHEMA, c.TABLE_NAME, c.COLUMN_NAME, c.COLUMN_NAME COLUMN_ALIAS, cast(MAX(c.IsPrimaryKey) as bit) IsPrimaryKey, cast(MAX(c.IsForeignKey) as bit)IsForeignKey, cast(MAX(c.IsKey) as bit) IsKey, c.IsNullable, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.NUMERIC_PRECISION , c.DOMAIN_NAME,c.ORDINAL_POSITION, cast(0 as bit) IGNORE_COLUMN FROM cte c GROUP BY c.TABLE_SCHEMA, c.TABLE_NAME, c.COLUMN_NAME, c.IsNullable, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.NUMERIC_PRECISION , c.DOMAIN_NAME, c.ORDINAL_POSITION )
+with source as
+(
+    select
+        @app as application_name,
+        s.name as TABLE_SCHEMA,
+        o.name as TABLE_NAME,
+        c.name as COLUMN_NAME,
+        cast(case when exists
+        (
+            select 1
+            from sys.indexes i
+            inner join sys.index_columns ic on ic.object_id = i.object_id and ic.index_id = i.index_id
+            where i.object_id = o.object_id
+              and i.is_primary_key = 1
+              and ic.column_id = c.column_id
+        ) then 1 else 0 end as bit) as IsPrimaryKey,
+        cast(case when exists
+        (
+            select 1
+            from sys.foreign_key_columns fkc
+            where fkc.parent_object_id = o.object_id
+              and fkc.parent_column_id = c.column_id
+        ) then 1 else 0 end as bit) as IsForeignKey,
+        cast(case when exists
+        (
+            select 1
+            from sys.key_constraints kc
+            inner join sys.index_columns ic on ic.object_id = kc.parent_object_id and ic.index_id = kc.unique_index_id
+            where kc.parent_object_id = o.object_id
+              and ic.column_id = c.column_id
+        ) or exists
+        (
+            select 1
+            from sys.foreign_key_columns fkc
+            where fkc.parent_object_id = o.object_id
+              and fkc.parent_column_id = c.column_id
+        ) then 1 else 0 end as bit) as IsKey,
+        cast(case when c.is_nullable = 1 then 1 else 0 end as bit) as IsNullable,
+        type_name(c.system_type_id) as DATA_TYPE,
+        c.max_length as CHARACTER_MAXIMUM_LENGTH,
+        c.column_id as ORDINAL_POSITION,
+        c.precision as NUMERIC_PRECISION,
+        case when c.user_type_id <> c.system_type_id then user_type.name else null end as DOMAIN_NAME,
+        cast(case when ic.object_id is not null then 1 else 0 end as bit) as IsIdentity,
+        cast(case when cc.object_id is not null then 1 else 0 end as bit) as IsComputed,
+        cast(case when type_name(c.system_type_id) in ('timestamp', 'rowversion') then 1 else 0 end as bit) as IsRowVersion,
+        cast(case when dc.object_id is not null then 1 else 0 end as bit) as HasDefaultConstraint,
+        cast(0 as bit) as IGNORE_COLUMN,
+        c.name as COLUMN_ALIAS
+    from sys.objects o
+    inner join sys.schemas s on s.schema_id = o.schema_id
+    inner join sys.columns c on c.object_id = o.object_id
+    left join sys.types user_type on user_type.user_type_id = c.user_type_id
+    left join sys.identity_columns ic on ic.object_id = c.object_id and ic.column_id = c.column_id
+    left join sys.computed_columns cc on cc.object_id = c.object_id and cc.column_id = c.column_id
+    left join sys.default_constraints dc on dc.parent_object_id = c.object_id and dc.parent_column_id = c.column_id
+    where o.type in ('U', 'V')
+      and o.is_ms_shipped = 0
+      and o.name <> 'database_firewall_rules'
+      and o.name <> 'sysdiagrams'
+      and c.name not like 'graph_id_%'
+      and c.name not like '$edge_id_%'
+      and c.name not like 'to_obj_id_%'
+      and c.name not like 'from_obj_id_%'
+      and c.name not like '$to_obj_id_%'
+      and c.name not like '$to_id_%'
+      and c.name not like 'to_id_%'
+      and c.name not like '$node_id_%'
+      and c.name not like '$from_id_%'
+      and s.name not in (<@excludedSchemasList@>)
+)
 select * from source
 ";
         public const string CreateTable_TablesAndViews_4 = @"
